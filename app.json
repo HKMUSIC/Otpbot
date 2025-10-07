@@ -1,36 +1,28 @@
 {
-  "name": "Telegram Virtual Number Shop Bot",
-  "description": "A Telegram bot for selling virtual numbers with balance, stock, and admin controls — safe and compliant version (no OTP interception).",
+  "name": "telegram-number-shop-bot",
+  "description": "Telegram bot for selling virtual numbers with balance, stock, and admin controls.",
   "repository": "https://github.com/yourusername/telegram-number-shop-bot",
-  "keywords": [
-    "telegram",
-    "bot",
-    "shop",
-    "heroku",
-    "python",
-    "virtual-number",
-    "mongodb"
-  ],
+  "keywords": ["telegram", "bot", "shop", "mongodb", "heroku", "python"],
   "env": {
     "BOT_TOKEN": {
       "description": "Telegram Bot Token from @BotFather",
       "required": true
     },
     "MONGODB_URI": {
-      "description": "Your MongoDB connection string (e.g., from MongoDB Atlas)",
+      "description": "MongoDB connection string (use your Atlas cluster)",
       "required": true
     },
     "ADMIN_IDS": {
-      "description": "Comma-separated Telegram user IDs of admins (e.g., 123456789,987654321)",
+      "description": "Comma-separated Telegram IDs of admins",
       "required": true
     },
     "CURRENCY_SYMBOL": {
-      "description": "Currency symbol to show in the bot (default: ₹)",
+      "description": "Currency symbol to show in the bot",
       "value": "₹",
       "required": false
     },
     "DEFAULT_PRICE": {
-      "description": "Default price per account (used if no per-country pricing)",
+      "description": "Default price per account",
       "value": "140.00",
       "required": false
     }
@@ -46,14 +38,8 @@
       "size": "basic"
     }
   },
-  "addons": [
-    {
-      "plan": "heroku-mongodb:small",
-      "as": "MONGO"
-    }
-  ],
   "scripts": {
-    "postdeploy": "python -c 'print(\"✅ Deployment complete. You can now run the bot!\")'"
+    "postdeploy": "python -c 'print(\"✅ Deployment complete. Bot is running.\")'"
   },
   "stack": "heroku-22"
 }
