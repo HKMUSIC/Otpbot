@@ -1,37 +1,38 @@
-import asyncio
-from motor.motor_asyncio import AsyncIOMotorClient
-from config import MONGODB_URI
-from pymongo.errors import ConfigurationError
+from datetime import datetime
+from sqlalchemy import create_engine, Integer, String, Float, DateTime, ForeignKey, Text
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
+from config import DATABASE_URL
 
-_client = AsyncIOMotorClient(MONGODB_URI)
+engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
-# Try to get the default database; fallback if not defined
-try:
-    db = _client.get_default_database()
-except ConfigurationError:
-    db = _client["telegramBot"]  # fallback default name
+class Base(DeclarativeBase):
+    pass
 
-# Collections
-users_col = db["users"]
-stock_col = db["stock"]
-tx_col = db["transactions"]
+class User(Base):
+    __tablename__ = "users"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)  # Telegram user id
+    username: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    balance: Mapped[float] = mapped_column(Float, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-# convenience init
-async def ensure_indexes():
-    await users_col.create_index("telegram_id", unique=True)
-    await stock_col.create_index([("country", 1)])
-    await tx_col.create_index("user_id")
+    orders: Mapped[list["Order"]] = relationship("Order", back_populates="user")
 
-# utility to get or create user
-async def get_or_create_user(telegram_id, username=None):
-    user = await users_col.find_one({"telegram_id": telegram_id})
-    if not user:
-        user = {
-            "telegram_id": telegram_id,
-            "username": username,
-            "balance": 0.0,
-            "created_at": asyncio.get_event_loop().time()
-        }
-        await users_col.insert_one(user)
-        user = await users_col.find_one({"telegram_id": telegram_id})
-    return user
+class Order(Base):
+    __tablename__ = "orders"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    service: Mapped[str] = mapped_column(String(32))
+    country: Mapped[str] = mapped_column(String(8))
+    price: Mapped[float] = mapped_column(Float)
+    provider_order_id: Mapped[str] = mapped_column(String(64))
+    number: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(32), default="waiting_sms")  # waiting_sms, received, canceled, error
+    otp_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user: Mapped["User"] = relationship("User", back_populates="orders")
+
+def init_db():
+    Base.metadata.create_all(engine)
