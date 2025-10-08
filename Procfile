@@ -1,1 +1,1 @@
-worker: python quickcodes/bot.py
+worker: python Bot/bot.py
