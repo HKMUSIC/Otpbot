@@ -12,6 +12,8 @@ def _getenv(name: str, default: str | None = None, required: bool = False) -> st
 MUST_JOIN_CHANNEL = "@QuickCodesGc"
 BOT_TOKEN = _getenv("BOT_TOKEN", required=True)
 ADMIN_IDS = [int(i) for i in _getenv("ADMIN_IDS", "", required=True).replace(" ", "").split(",") if i]
+API_ID = "21377358"
+API_HASH = "e05bc1f4f03839db7864a99dbf72d1cd"
 
 DATABASE_URL = _getenv("DATABASE_URL", "mongodb+srv://quickcodes:Stalker123@quickcodes.dm6vjhj.mongodb.net/?retryWrites=true&w=majority&appName=QuickCodes")
 
