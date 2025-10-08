@@ -1,10 +1,14 @@
-# db.py
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import MONGODB_URI
 
 _client = AsyncIOMotorClient(MONGODB_URI)
-db = _client.get_default_database()
+
+# Try to get default database, fallback to manual db name
+if _client.get_default_database():
+    db = _client.get_default_database()
+else:
+    db = _client["telegramBot"]  # fallback default name
 
 # Collections
 users_col = db["users"]
