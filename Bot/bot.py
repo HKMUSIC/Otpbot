@@ -174,7 +174,7 @@ async def callback_buy(cq: CallbackQuery):
     kb.adjust(2)
     await cq.message.answer("🌍 Select a country:", reply_markup=kb.as_markup())
     
-    @dp.callback_query(F.data.startswith("buy_country:"))
+@dp.callback_query(F.data.startswith("buy_country:"))
 async def on_choose_country(cq: CallbackQuery):
     await cq.answer()
     _, country = cq.data.split(":")
