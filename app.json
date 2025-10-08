@@ -1,29 +1,78 @@
 {
-  "name": "telegram-number-shop-bot",
-  "description": "Telegram bot for selling virtual numbers with balance, stock, and admin controls.",
-  "repository": "https://github.com/yourusername/telegram-number-shop-bot",
-  "keywords": ["telegram", "bot", "shop", "mongodb", "heroku", "python"],
+  "name": "QuickCodes OTP Bot",
+  "description": "Telegram bot for selling OTP virtual numbers via provider API",
+  "logo": "https://telegra.ph/file/7eb66e0c1254c8484d85f.jpg",
+  "keywords": [
+    "python",
+    "telegram",
+    "bot",
+    "otp",
+    "heroku"
+  ],
   "env": {
     "BOT_TOKEN": {
       "description": "Telegram Bot Token from @BotFather",
-      "required": true
-    },
-    "MONGODB_URI": {
-      "description": "MongoDB connection string (use your Atlas cluster)",
+      "value": "",
       "required": true
     },
     "ADMIN_IDS": {
-      "description": "Comma-separated Telegram IDs of admins",
+      "description": "Admin Telegram IDs (comma separated, e.g. 123456789,987654321)",
+      "value": "",
       "required": true
     },
-    "CURRENCY_SYMBOL": {
-      "description": "Currency symbol to show in the bot",
-      "value": "₹",
+    "DATABASE_URL": {
+      "description": "Database connection URL (e.g. Postgres, Mongo, or SQLite)",
+      "value": "sqlite:///data.db",
       "required": false
     },
-    "DEFAULT_PRICE": {
-      "description": "Default price per account",
-      "value": "140.00",
+    "PROVIDER_API_KEY": {
+      "description": "API key from your OTP provider",
+      "value": "",
+      "required": true
+    },
+    "PROVIDER_BASE_URL": {
+      "description": "Base URL of OTP provider API (e.g. https://api.provider.com)",
+      "value": "",
+      "required": true
+    },
+    "PROVIDER_ENDPOINT_GET_NUMBER": {
+      "description": "Endpoint path to request a number (e.g. /getNumber)",
+      "value": "",
+      "required": true
+    },
+    "PROVIDER_ENDPOINT_GET_SMS": {
+      "description": "Endpoint path to fetch SMS (e.g. /getSms)",
+      "value": "",
+      "required": true
+    },
+    "PROVIDER_PARAM_APIKEY": {
+      "description": "Query param name for API key",
+      "value": "api_key",
+      "required": false
+    },
+    "PROVIDER_PARAM_SERVICE": {
+      "description": "Query param name for service identifier",
+      "value": "service",
+      "required": false
+    },
+    "PROVIDER_PARAM_COUNTRY": {
+      "description": "Query param name for country code",
+      "value": "country",
+      "required": false
+    },
+    "PROVIDER_PARAM_ORDER_ID": {
+      "description": "Query param name for order/transaction ID",
+      "value": "id",
+      "required": false
+    },
+    "DEFAULT_CURRENCY": {
+      "description": "Default currency code (e.g. INR, USD)",
+      "value": "INR",
+      "required": false
+    },
+    "MIN_BALANCE_REQUIRED": {
+      "description": "Minimum balance required for users to use the bot",
+      "value": "0",
       "required": false
     }
   },
@@ -37,9 +86,6 @@
       "quantity": 1,
       "size": "basic"
     }
-  },
-  "scripts": {
-    "postdeploy": "python -c 'print(\"✅ Deployment complete. Bot is running.\")'"
   },
   "stack": "heroku-22"
 }
