@@ -22,7 +22,7 @@ from admin_approval import register_admin_approval_handlers
 from admin_commands import register_admin_command_handlers
 
 # ===== MongoDB Setup =====
-MONGO_URI = "mongodb+srv://quickcodes:Stalker123@quickcodes.dm6vjhj.mongodb.net/?retryWrites=true&w=majority&appName=QuickCodes"
+MONGO_URI = "mongodb+srv://Sony:Sony123@sony0.soh6m14.mongodb.net/?retryWrites=true&w=majority&appName=Sony0"
 client = MongoClient(MONGO_URI)
 db = client["QuickCodes"]
 users_col = db["users"]
@@ -114,10 +114,10 @@ async def cmd_start(m: Message):
 
     # Main welcome text with linked "!"
     text = (
-        "<b>Welcome to QuickCodes Bot – ⚡ Most Trusted and Fastest OTP Bot!</b>\n"
-        "<i><blockquote>📖 How to use QuickCodes Bot:</blockquote></i>\n"
+        "<b>Welcome to Bot – ⚡ Most Trusted and Fastest OTP Bot!</b>\n"
+        "<i><blockquote>📖 How to use Bot:</blockquote></i>\n"
         "<blockquote expandable>1️⃣ Recharge\n2️⃣ Select Country + Operator\n3️⃣ Select App\n4️⃣ Click on Purchase and 📩 Receive OTP</blockquote>\n"
-        "🚀 Enjoy Fast OTP Services<a href=\"https://files.catbox.moe/7eqyt6.jpg\">!</a>"
+        "🚀 Enjoy Fast OTP Services<a href=\"https://files.catbox.moe/c1pxci.mp4\">!</a>"
     )
     kb = InlineKeyboardBuilder()
     kb.row(
