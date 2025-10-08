@@ -11,6 +11,7 @@ from pymongo import MongoClient
 from bson import ObjectId
 
 # External modules
+from readymade_accounts import register_readymade_accounts_handlers
 from provider import PROVIDER_BASE_URL, PROVIDER_API_KEY, ProviderClient, ProviderError
 from mustjoin import check_join
 from config import BOT_TOKEN, ADMIN_IDS, DEFAULT_CURRENCY, MIN_BALANCE_REQUIRED
