@@ -1,16 +1,14 @@
 import os
 import asyncio
 import datetime
+import html
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from pymongo import MongoClient
-from telethon.sync import TelegramClient
-from telethon.sessions import StringSession
 
-# External modules
 from readymade_accounts import register_readymade_accounts_handlers
 from mustjoin import check_join
 from config import BOT_TOKEN, ADMIN_IDS, DEFAULT_CURRENCY, MIN_BALANCE_REQUIRED
@@ -22,8 +20,8 @@ client = MongoClient(MONGO_URI)
 db = client["QuickCodes"]
 users_col = db["users"]
 orders_col = db["orders"]
-countries_col = db["countries"]          # Country info + stock + price
-numbers_col = db["numbers"]              # Individual numbers with string sessions
+countries_col = db["countries"]
+numbers_col = db["numbers"]  # Each number with string session, password, used status
 
 # ===== Bot Setup =====
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
@@ -45,25 +43,27 @@ def is_admin(user_id: int) -> bool:
 async def cmd_start(m: Message):
     if not await check_join(bot, m):
         return
+
     get_or_create_user(m.from_user.id, m.from_user.username)
+
     text = (
         "<b>Welcome to Bot – ⚡ Fastest Telegram OTP Bot!</b>\n"
-        "<i><blockquote>📖 How to use Bot:</blockquote></i>\n"
+        "<i>📖 How to use Bot:</i>\n"
         "1️⃣ Recharge\n2️⃣ Select Country\n3️⃣ Buy Account and 📩 Receive OTP\n"
         "🚀 Enjoy Fast OTP Services!"
     )
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="💵 Balance", callback_data="balance"),
-        InlineKeyboardButton(text="🛒 Buy Account", callback_data="buy")
+        InlineKeyboardButton("💵 Balance", callback_data="balance"),
+        InlineKeyboardButton("🛒 Buy Account", callback_data="buy")
     )
     kb.row(
-        InlineKeyboardButton(text="💳 Recharge", callback_data="recharge"),
-        InlineKeyboardButton(text="🛠️ Support", url="https://t.me/iamvalrik")
+        InlineKeyboardButton("💳 Recharge", callback_data="recharge"),
+        InlineKeyboardButton("🛠️ Support", url="https://t.me/iamvalrik")
     )
     kb.row(
-        InlineKeyboardButton(text="📦 Your Info", callback_data="stats"),
-        InlineKeyboardButton(text="🆘 How to Use?", callback_data="howto")
+        InlineKeyboardButton("📦 Your Info", callback_data="stats"),
+        InlineKeyboardButton("🆘 How to Use?", callback_data="howto")
     )
     await m.answer(text, reply_markup=kb.as_markup())
 
@@ -88,7 +88,7 @@ async def callback_buy(cq: CallbackQuery):
 
     kb = InlineKeyboardBuilder()
     for c in countries:
-        kb.button(text=c["name"], callback_data=f"country:{c['name']}")
+        kb.button(html.escape(c["name"]), callback_data=f"country:{c['name']}")
     kb.adjust(2)
     await cq.message.answer("🌍 Select a country:", reply_markup=kb.as_markup())
 
@@ -102,20 +102,20 @@ async def callback_country(cq: CallbackQuery):
 
     text = (
         f"⚡ Telegram Account Info\n\n"
-        f"🌍 Country : {country['name']}\n"
+        f"🌍 Country : {html.escape(country['name'])}\n"
         f"💸 Price : ₹{country['price']}\n"
         f"📦 Available : {country['stock']}\n"
         f"🔍 Reliable | Affordable | Good Quality\n\n"
         f"⚠️ Use Telegram X only to login.\n"
-        f"🚫 We are not responsible for freeze/ban."
+        f"🚫 Not responsible for freeze/ban."
     )
 
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="💳 Buy Now", callback_data=f"buy_now:{country_name}"),
-        InlineKeyboardButton(text="🔙 Back", callback_data="buy")
+        InlineKeyboardButton("💳 Buy Now", callback_data=f"buy_now:{country_name}"),
+        InlineKeyboardButton("🔙 Back", callback_data="buy")
     )
-    await cq.message.answer(text, reply_markup=kb.as_markup())  # NEW message
+    await cq.message.answer(text, reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data.startswith("buy_now:"))
 async def callback_buy_now(cq: CallbackQuery):
@@ -129,7 +129,7 @@ async def callback_buy_now(cq: CallbackQuery):
     if user["balance"] < country["price"]:
         return await cq.answer("⚠️ Insufficient balance", show_alert=True)
 
-    # Pick a random available number from numbers_col
+    # Pick first available number
     number_doc = numbers_col.find_one({"country": country_name, "used": False})
     if not number_doc:
         return await cq.answer("❌ No available numbers for this country.", show_alert=True)
@@ -137,6 +137,7 @@ async def callback_buy_now(cq: CallbackQuery):
     # Deduct balance and mark number as used
     users_col.update_one({"_id": user["_id"]}, {"$inc": {"balance": -country["price"]}})
     numbers_col.update_one({"_id": number_doc["_id"]}, {"$set": {"used": True}})
+    countries_col.update_one({"name": country_name}, {"$inc": {"stock": -1}})
 
     # Insert order
     orders_col.insert_one({
@@ -150,8 +151,8 @@ async def callback_buy_now(cq: CallbackQuery):
 
     text = (
         f"✅ Purchase Successful!\n\n"
-        f"🌍 Country: {country_name}\n"
-        f"📱 Number: {number_doc['number']}\n"
+        f"🌍 Country: {html.escape(country_name)}\n"
+        f"📱 Number: {html.escape(number_doc['number'])}\n"
         f"💸 Deducted: {country['price']}\n"
         f"💰 Balance Left: {user['balance'] - country['price']:.2f}\n\n"
         "👉 Copy the number and open Telegram X, paste the number, request login."
@@ -159,8 +160,8 @@ async def callback_buy_now(cq: CallbackQuery):
 
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="📋 Copy Number", callback_data=f"copy_number:{number_doc['number']}"),
-        InlineKeyboardButton(text="🔑 Get OTP", callback_data=f"get_otp:{number_doc['_id']}")
+        InlineKeyboardButton("📋 Copy Number", callback_data=f"copy_number:{number_doc['number']}"),
+        InlineKeyboardButton("🔑 Get OTP", callback_data=f"get_otp:{number_doc['_id']}")
     )
     await cq.message.answer(text, reply_markup=kb.as_markup())
 
@@ -173,15 +174,15 @@ async def callback_get_otp(cq: CallbackQuery):
     if not number_doc:
         return await cq.answer("❌ Number not found", show_alert=True)
 
-    otp = await fetch_otp_for_number(number_doc)  # Calls separate module
+    otp = await fetch_otp_for_number(number_doc)
     if not otp:
         return await cq.answer("❌ Failed to fetch OTP. Try again.", show_alert=True)
 
     text = (
         f"🚚 OTP Delivered Successfully!\n\n"
-        f"📱 {number_doc['number']}\n"
+        f"📱 {html.escape(number_doc['number'])}\n"
         f"🔑 OTP: {otp}\n"
-        f"PASS: {number_doc['password']}\n\n"
+        f"PASS: {html.escape(number_doc['password'])}\n\n"
         "⚠️ This message will be deleted after 3 minutes.\n"
         "👉 Enter this OTP in Telegram X. Max 2 attempts."
     )
@@ -190,7 +191,7 @@ async def callback_get_otp(cq: CallbackQuery):
     await asyncio.sleep(180)
     await cq.message.delete()
 
-# ===== Admin: Stock Management =====
+# ===== Admin: Add Stock =====
 @dp.message(Command("addstock"))
 async def cmd_add_stock(msg: Message):
     if not is_admin(msg.from_user.id):
@@ -209,13 +210,34 @@ async def cmd_add_stock(msg: Message):
     )
     await msg.answer(f"✅ {stock} accounts added for {country_name} at ₹{price} each.")
 
+# ===== Admin: Add Numbers =====
+@dp.message(Command("addnumber"))
+async def cmd_add_number(msg: Message):
+    if not is_admin(msg.from_user.id):
+        return await msg.answer("❌ Not authorized")
+    try:
+        _, country_name, number, password = msg.text.split()
+    except Exception:
+        return await msg.answer("Usage: /addnumber <Country> <Number> <Password>")
+
+    numbers_col.insert_one({
+        "country": country_name,
+        "number": number,
+        "password": password,
+        "used": False
+    })
+    # Ensure country exists
+    countries_col.update_one({"name": country_name}, {"$setOnInsert": {"stock": 0, "price": 0}}, upsert=True)
+    await msg.answer(f"✅ Number {number} added for {country_name}.")
+
+# ===== Admin: View/Delete Stock =====
 @dp.message(Command("viewstock"))
 async def cmd_view_stock(msg: Message):
     if not is_admin(msg.from_user.id):
         return await msg.answer("❌ Not authorized")
     kb = InlineKeyboardBuilder()
     for c in countries_col.find({}):
-        kb.button(text=c["name"], callback_data=f"viewstock_country:{c['name']}")
+        kb.button(c["name"], callback_data=f"viewstock_country:{c['name']}")
     kb.adjust(2)
     await msg.answer("Select country to view stock:", reply_markup=kb.as_markup())
 
@@ -226,6 +248,7 @@ async def callback_view_stock_country(cq: CallbackQuery):
     numbers = list(numbers_col.find({"country": country_name, "used": False}))
     if not numbers:
         return await cq.message.answer("❌ No stock for this country.")
+
     msg_text = f"📦 Available numbers for {country_name}:\n"
     for n in numbers:
         msg_text += f"{n['number']} | PASS: {n['password']} | Used: {n.get('used', False)}\n"
@@ -242,7 +265,7 @@ async def cmd_delete_stock(msg: Message):
     numbers_col.delete_many({"country": country_name, "used": False})
     await msg.answer(f"✅ All unused stock deleted for {country_name}.")
 
-# ===== Other Callbacks =====
+# ===== How To Use =====
 @dp.callback_query(F.data=="howto")
 async def callback_howto(cq: CallbackQuery):
     if not await check_join(bot, cq.message): return
@@ -267,13 +290,10 @@ async def callback_stats(cq: CallbackQuery):
 # ===== Support =====
 @dp.message(Command("support"))
 async def cmd_support(msg: Message):
-    if not await check_join(bot, msg): 
-        return
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="💬 Contact Support", url="https://t.me/hehe_stalker")]
-        ]
-    )
+    if not await check_join(bot, msg): return
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton("💬 Contact Support", url="https://t.me/hehe_stalker")]
+    ])
     await msg.answer(f"👋 {msg.from_user.full_name}, contact support if needed.", reply_markup=kb)
 
 # ===== Register external handlers =====
