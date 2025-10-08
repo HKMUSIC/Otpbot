@@ -122,14 +122,14 @@ async def cmd_start(m: Message):
     kb = InlineKeyboardBuilder()
     kb.row(
         InlineKeyboardButton(text="💵 Balance", callback_data="balance"),
-        InlineKeyboardButton(text="📲 Get Number", callback_data="buy")
+        InlineKeyboardButton(text="🛒Buy Account", callback_data="buy")
     )
     kb.row(
         InlineKeyboardButton(text="💳 Recharge", callback_data="recharge"),
-        InlineKeyboardButton(text="🛠️ Support", url="https://t.me/hehe_stalker")
+        InlineKeyboardButton(text="🛠️ Support", url="https://t.me/iamvalrik")
     )
     kb.row(
-        InlineKeyboardButton(text="📜 Terms of Use", url="https://telegra.ph/Terms-of-Use--Quick-Codes-Bot-08-31"),
+        InlineKeyboardButton(text="FAKE BUTTON", url="tg://setting"),
         InlineKeyboardButton(text="📦 Your Info", callback_data="stats")
     )
     kb.row(InlineKeyboardButton(text="🆘 How to Use?", callback_data="howto"))
@@ -180,7 +180,6 @@ async def on_choose_country(cq: CallbackQuery):
     _, country = cq.data.split(":")
     kb = InlineKeyboardBuilder()
     kb.button(text="Telegram", callback_data=f"buy_service:{country}:Telegram")
-    kb.button(text="WhatsApp", callback_data=f"buy_service:{country}:WhatsApp")
     kb.adjust(1)
     kb.button(text="🔙 Back", callback_data=f"buy")
     await cq.message.edit_text("💬 Select a service:", reply_markup=kb.as_markup())
