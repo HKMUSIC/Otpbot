@@ -54,16 +54,16 @@ async def cmd_start(m: Message):
     )
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton("💵 Balance", callback_data="balance"),
-        InlineKeyboardButton("🛒 Buy Account", callback_data="buy")
+        InlineKeyboardButton(text="💵 Balance", callback_data="balance"),
+        InlineKeyboardButton(text="🛒 Buy Account", callback_data="buy")
     )
     kb.row(
-        InlineKeyboardButton("💳 Recharge", callback_data="recharge"),
-        InlineKeyboardButton("🛠️ Support", url="https://t.me/iamvalrik")
+        InlineKeyboardButton(text="💳 Recharge", callback_data="recharge"),
+        InlineKeyboardButton(text="🛠️ Support", url="https://t.me/iamvalrik")
     )
     kb.row(
-        InlineKeyboardButton("📦 Your Info", callback_data="stats"),
-        InlineKeyboardButton("🆘 How to Use?", callback_data="howto")
+        InlineKeyboardButton(text="📦 Your Info", callback_data="stats"),
+        InlineKeyboardButton(text="🆘 How to Use?", callback_data="howto")
     )
     await m.answer(text, reply_markup=kb.as_markup())
 
