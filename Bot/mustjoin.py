@@ -8,8 +8,8 @@ PRIVATE_CHANNEL_LINK = "https://t.me/+yPfNnkEIS8U5NGM1"
 
 # Welcome text with HTML formatting
 WELCOME_TEXT = (
-    '𝖶𝖾𝗅𝖼𝗈𝗆𝖾 𝗍𝗈 𝖰𝗎𝗂𝖼𝗄𝖢𝗈𝖽𝖾𝗌 𝖡𝗈𝗍'
-    '<a href="https://files.catbox.moe/7eqyt6.jpg">🤖</a>\n'
+    '𝖶𝖾𝗅𝖼𝗈𝗆𝖾 𝗍𝗈 𝖡𝗈𝗍'
+    '<a href="https://files.catbox.moe/c1pxci.mp4">🤖</a>\n'
     '<blockquote expandable>𝖳𝗈 𝗎𝗌𝖾 𝗈𝗎𝗋 𝖮𝖳𝖯 𝖡𝗈𝗍, 𝗒𝗈𝗎 𝗆𝗎𝗌𝗍 𝗃𝗈𝗂𝗇 𝗈𝗎𝗋 𝖢𝗁𝖺𝗇𝗇𝖾𝗅𝗌 𝖺𝗇𝖽 𝖦𝗋𝗈𝗎𝗉𝗌 '
     '𝖿𝗈𝗋 𝗎𝗉𝖽𝖺𝗍𝖾𝗌 𝖺𝗇𝖽 𝗌𝗎𝗉𝗉𝗈𝗋𝗍 ❤️</blockquote>\n'
     '<blockquote>𝖠𝖿𝗍𝖾𝗋 𝖩𝗈𝗂𝗇𝗂𝗇𝗀, 𝖱𝖾𝗌𝗍𝖺𝗋𝗍 𝗍𝗁𝖾 𝖻𝗈𝗍 🤖</blockquote>'
