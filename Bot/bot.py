@@ -131,7 +131,7 @@ async def callback_country(cq: CallbackQuery):
     
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="💳 Buy Now", callback_data="buy_now"),
+        InlineKeyboardButton(text="💳 Buy Now", callback_data=f"buy_now : {country_name}"),
         InlinekeyboardButton(text="🔙 Back", callback_data="buy")
     )
     
