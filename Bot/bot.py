@@ -137,51 +137,50 @@ async def callback_country(cq: CallbackQuery):
 
 # ===== Buy Now Flow with OTP grab from string session =====
 
+# ===== Buy Now Flow =====
 @dp.callback_query(F.data.startswith("buy_now:"))
 async def callback_buy_now(cq: CallbackQuery):
     await cq.answer()
     _, country_name = cq.data.split(":", 1)
 
-    # --- Fetch country ---
-    country = countries_col.find_one({"name": country_name})
+    # Fetch country and user safely in thread
+    country, user = await asyncio.to_thread(lambda: (
+        countries_col.find_one({"name": country_name}),
+        get_or_create_user(cq.from_user.id, cq.from_user.username)
+    ))
+
     if not country:
         return await cq.answer("❌ Country not found", show_alert=True)
 
-    # --- Fetch user ---
-    user = get_or_create_user(cq.from_user.id, cq.from_user.username)
-
-    # --- Check balance ---
     if user.get("balance", 0) < country.get("price", 0):
         return await cq.answer("⚠️ Insufficient balance", show_alert=True)
 
-    # --- Fetch available number ---
-    number_doc = numbers_col.find_one({"country": country_name, "used": False})
+    # Fetch available number safely
+    number_doc = await asyncio.to_thread(lambda: numbers_col.find_one({"country": country_name, "used": False}))
     if not number_doc:
         return await cq.answer("❌ No available numbers for this country.", show_alert=True)
 
-    # --- Deduct balance & mark number used ---
+    # Deduct balance & mark number used safely
     new_balance = user["balance"] - country["price"]
-    users_col.update_one({"_id": user["_id"]}, {"$set": {"balance": new_balance}})
-    numbers_col.update_one({"_id": number_doc["_id"]}, {"$set": {"used": True}})
-    countries_col.update_one({"name": country_name}, {"$inc": {"stock": -1}})
+    await asyncio.to_thread(lambda: users_col.update_one({"_id": user["_id"]}, {"$set": {"balance": new_balance}}))
+    await asyncio.to_thread(lambda: numbers_col.update_one({"_id": number_doc["_id"]}, {"$set": {"used": True}}))
+    await asyncio.to_thread(lambda: countries_col.update_one({"name": country_name}, {"$inc": {"stock": -1}}))
 
-    # --- Insert order ---
-    orders_col.insert_one({
+    # Insert order safely
+    await asyncio.to_thread(lambda: orders_col.insert_one({
         "user_id": user["_id"],
         "country": country_name,
         "number": number_doc["number"],
         "price": country["price"],
         "status": "purchased",
         "created_at": datetime.datetime.utcnow()
-    })
+    }))
 
-    # --- Build keyboard for OTP ---
     kb = InlineKeyboardBuilder()
     kb.row(
         InlineKeyboardButton(text="🔑 Get OTP", callback_data=f"grab_otp:{number_doc['_id']}")
     )
 
-    # --- Send message ---
     text = (
         f"✅ Purchase Successful!\n\n"
         f"🌍 Country: {html.escape(country_name)}\n"
@@ -193,45 +192,47 @@ async def callback_buy_now(cq: CallbackQuery):
 
     await cq.message.edit_text(text, reply_markup=kb.as_markup())
 
+# ===== Grab OTP Flow =====
 @dp.callback_query(F.data.startswith("grab_otp:"))
 async def callback_grab_otp(cq: CallbackQuery):
-    await cq.answer()
+    await cq.answer("⏳ Fetching OTP...", show_alert=True)
     _, number_id = cq.data.split(":", 1)
-    number_doc = numbers_col.find_one({"_id": number_id})
-    
+
+    number_doc = await asyncio.to_thread(lambda: numbers_col.find_one({"_id": number_id}))
     if not number_doc:
         return await cq.answer("❌ Number not found", show_alert=True)
-    
+
     string_session = number_doc.get("string_session")
     api_id = int(os.getenv("API_ID"))
     api_hash = os.getenv("API_HASH")
-    
+
     if not string_session:
         return await cq.answer("❌ No string session found for this number.", show_alert=True)
-    
-    client = TelegramClient(StringSession(string_session), api_id, api_hash)
-    await client.connect()
-    
-    try:
-        code = ""
-        async for msg in client.iter_messages("777000", limit=5):
-            if msg.message and msg.message.isdigit():
-                code = msg.message
-                break
-        
-        if not code:
-            await cq.answer("⚠️ No OTP received yet. Try again in a few seconds.", show_alert=True)
-        else:
-            await cq.message.answer(
-                f"🔑 OTP for {number_doc['number']}:\n<code>{code}</code>",
-                parse_mode="HTML"
-            )
-    except SessionPasswordNeededError:
-        await cq.message.answer("🔐 This account has 2FA enabled. Use the password manually.")
-    except Exception as e:
-        await cq.message.answer(f"❌ Failed to grab OTP: {e}")
-    finally:
-        await client.disconnect()
+
+    async def fetch_and_send_otp():
+        try:
+            client = TelegramClient(StringSession(string_session), api_id, api_hash)
+            await client.connect()
+
+            code = ""
+            async for msg in client.iter_messages("777000", limit=5):
+                if msg.message and msg.message.isdigit():
+                    code = msg.message
+                    break
+
+            if code:
+                await cq.message.answer(f"🔑 OTP for {number_doc['number']}:\n<code>{code}</code>", parse_mode="HTML")
+            else:
+                await cq.message.answer("⚠️ No OTP received yet. Try again in a few seconds.")
+        except SessionPasswordNeededError:
+            await cq.message.answer("🔐 2FA enabled. Please use password manually.")
+        except Exception as e:
+            await cq.message.answer(f"❌ Failed to grab OTP: {e}")
+        finally:
+            await client.disconnect()
+
+    # Run OTP fetch in background
+    asyncio.create_task(fetch_and_send_otp())
     
 # ===== Admin Add (with Telethon StringSession generation) =====
 class AddSession(StatesGroup):
