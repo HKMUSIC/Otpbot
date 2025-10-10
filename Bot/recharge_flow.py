@@ -157,73 +157,74 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         await state.set_state(RechargeState.waiting_deposit_screenshot)
         await cq.answer()
 
-    # ===== Screenshot Received =====
-    @dp.message(StateFilter(RechargeState.waiting_deposit_screenshot), F.photo)
-    async def screenshot_received(msg: Message, state: FSMContext):
-        await state.update_data(screenshot=msg.photo[-1].file_id)
-        await msg.answer("💰 Enter the amount you sent (in ₹):")
-        await state.set_state(RechargeState.waiting_deposit_amount)
+# ===== Screenshot Received =====
+@dp.message(StateFilter(RechargeState.waiting_deposit_screenshot), F.photo)
+async def screenshot_received(msg: Message, state: FSMContext):
+    await state.update_data(screenshot=msg.photo[-1].file_id)
+    # Use msg.answer instead of edit_text
+    await msg.answer("💰 Enter the amount you sent (in ₹):")
+    await state.set_state(RechargeState.waiting_deposit_amount)
 
-    # ===== Amount Received =====
-    @dp.message(StateFilter(RechargeState.waiting_deposit_amount), F.text)
-    async def amount_received(msg: Message, state: FSMContext):
-        amount = msg.text.strip()
-        if not amount.replace(".", "").isdigit():
-            await msg.answer("❌ Invalid amount. Please send a number (e.g., 100).")
-            return
-        await state.update_data(amount=float(amount))
-        await msg.answer("🔑 Please send your Payment ID / UTR:")
-        await state.set_state(RechargeState.waiting_payment_id)
+# ===== Amount Received =====
+@dp.message(StateFilter(RechargeState.waiting_deposit_amount), F.text)
+async def amount_received(msg: Message, state: FSMContext):
+    amount_text = msg.text.strip()
+    if not amount_text.replace(".", "", 1).isdigit():
+        await msg.answer("❌ Invalid amount. Enter only numbers (e.g., 100).")
+        return
+    await state.update_data(amount=float(amount_text))
+    await msg.answer("🔑 Please send your Payment ID / UTR:")
+    await state.set_state(RechargeState.waiting_payment_id)
 
-    # ===== Payment ID Received =====
-    @dp.message(StateFilter(RechargeState.waiting_payment_id), F.text)
-    async def payment_id_received(msg: Message, state: FSMContext):
-        data = await state.get_data()
-        screenshot = data.get("screenshot")
-        amount = data.get("amount")
-        payment_id = msg.text.strip()
-        user_id = msg.from_user.id
-        username = msg.from_user.username or "None"
-        full_name = msg.from_user.full_name
+# ===== Payment ID Received =====
+@dp.message(StateFilter(RechargeState.waiting_payment_id), F.text)
+async def payment_id_received(msg: Message, state: FSMContext):
+    data = await state.get_data()
+    screenshot = data.get("screenshot")
+    amount = data.get("amount")
+    payment_id = msg.text.strip()
 
-        txn_doc = {
-            "user_id": user_id,
-            "username": username,
-            "full_name": full_name,
-            "amount": amount,
-            "payment_id": payment_id,
-            "screenshot": screenshot,
-            "status": "pending",
-            "created_at": datetime.datetime.utcnow()
-        }
-        txn_id = txns_col.insert_one(txn_doc).inserted_id
+    user_id = msg.from_user.id
+    username = msg.from_user.username or "None"
+    full_name = msg.from_user.full_name
 
-        await msg.answer(
-            "✅ Your payment request has been sent to the admin. Please wait for approval or DM @hehe_stalker for faster approval."
-        )
-        await state.clear()
+    txn_doc = {
+        "user_id": user_id,
+        "username": username,
+        "full_name": full_name,
+        "amount": amount,
+        "payment_id": payment_id,
+        "screenshot": screenshot,
+        "status": "pending",
+        "created_at": datetime.datetime.utcnow()
+    }
+    txn_id = txns_col.insert_one(txn_doc).inserted_id
 
-        # Notify admins
-        kb = InlineKeyboardBuilder()
-        kb.button(text="✅ Approve", callback_data=f"approve_txn:{txn_id}")
-        kb.button(text="❌ Decline", callback_data=f"decline_txn:{txn_id}")
-        kb.adjust(2)
+    await msg.answer(
+        "✅ Your payment request has been sent to the admin. Please wait for approval."
+    )
+    await state.clear()
 
-        for admin_id in ADMIN_IDS:
-            try:
-                await bot.send_photo(
-                    chat_id=admin_id,
-                    photo=screenshot,
-                    caption=(
-                        f"<b>Payment Approval Request</b>\n\n"
-                        f"Name: {full_name}\n"
-                        f"Username: @{username}\n"
-                        f"ID: {user_id}\n"
-                        f"Amount: ₹{amount}\n"
-                        f"UTR / Payment ID: {payment_id}"
-                    ),
-                    parse_mode="HTML",
-                    reply_markup=kb.as_markup()
-                )
-            except Exception:
-                pass
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✅ Approve", callback_data=f"approve_txn:{txn_id}")
+    kb.button(text="❌ Decline", callback_data=f"decline_txn:{txn_id}")
+    kb.adjust(2)
+
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot.send_photo(
+                chat_id=admin_id,
+                photo=screenshot,
+                caption=(
+                    f"<b>Payment Approval Request</b>\n\n"
+                    f"Name: {full_name}\n"
+                    f"Username: @{username}\n"
+                    f"ID: {user_id}\n"
+                    f"Amount: ₹{amount}\n"
+                    f"UTR / Payment ID: {payment_id}"
+                ),
+                parse_mode="HTML",
+                reply_markup=kb.as_markup()
+            )
+        except Exception:
+            pass
