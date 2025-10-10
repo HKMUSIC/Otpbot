@@ -160,7 +160,8 @@ async def callback_buy_now(cq: CallbackQuery):
         return await cq.answer("❌ No available numbers for this country.", show_alert=True)
     
     # Deduct balance and mark number as used
-    users_col.update_one({"_id": user["_id"]}, {"$inc": {"balance": -country["price"]}})
+    new_balance = user["balance"] - country["price"]
+    users_col.update_one({"_id": user["_id"]}, {"$set": {"balance": new_balance}})
     numbers_col.update_one({"_id": number_doc["_id"]}, {"$set": {"used": True}})
     countries_col.update_one({"name": country_name}, {"$inc": {"stock": -1}})
     
@@ -183,12 +184,13 @@ async def callback_buy_now(cq: CallbackQuery):
         f"🌍 Country: {html.escape(country_name)}\n"
         f"📱 Your Number: {html.escape(number_doc['number'])}\n"
         f"💸 Deducted: {country['price']}\n"
-        f"💰 Balance Left: {user['balance'] - country['price']:.2f}\n\n"
+        f"💰 Balance Left: {new_balance:.2f}\n\n"
         "👉 Click below to get OTP when you are ready to login in Telegram."
     )
     
     await cq.message.edit_text(text, reply_markup=kb.as_markup())
 
+# ===== Grab OTP =====
 @dp.callback_query(F.data.startswith("grab_otp:"))
 async def callback_grab_otp(cq: CallbackQuery):
     await cq.answer()
@@ -383,6 +385,7 @@ async def handle_remove_country(msg: Message):
     countries_col.delete_one({"name": msg.text.strip()})
     await msg.answer(f"✅ Country {msg.text.strip()} removed.")
 
+# ===== Admin DB View =====
 @dp.message(Command("db"))
 async def cmd_db(msg: Message):
     if not is_admin(msg.from_user.id):
@@ -393,11 +396,7 @@ async def cmd_db(msg: Message):
         text += f"📱 {n['number']} | Country: {n['country']} | Used: {n['used']}\n"
     await msg.answer(text)
 
-# ===== FSM for Admin Credit/Debit =====
-class AdminAdjustBalanceState(StatesGroup):
-    waiting_input = State()
-
-# ===== Admin Credit =====
+# ===== Admin Credit/Debit FSM =====
 @dp.message(Command("credit"), StateFilter(None))
 async def cmd_credit(msg: Message, state: FSMContext):
     if not is_admin(msg.from_user.id):
@@ -406,7 +405,6 @@ async def cmd_credit(msg: Message, state: FSMContext):
     await state.set_state(AdminAdjustBalanceState.waiting_input)
     await state.update_data(action="credit")
 
-# ===== Admin Debit =====
 @dp.message(Command("debit"), StateFilter(None))
 async def cmd_debit(msg: Message, state: FSMContext):
     if not is_admin(msg.from_user.id):
@@ -415,7 +413,6 @@ async def cmd_debit(msg: Message, state: FSMContext):
     await state.set_state(AdminAdjustBalanceState.waiting_input)
     await state.update_data(action="debit")
 
-# ===== Handle Credit/Debit Input =====
 @dp.message(AdminAdjustBalanceState.waiting_input)
 async def handle_adjust_balance(msg: Message, state: FSMContext):
     data = await state.get_data()
