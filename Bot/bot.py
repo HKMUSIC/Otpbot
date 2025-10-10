@@ -207,54 +207,96 @@ async def callback_get_otp(cq: CallbackQuery):
     numbers_col.delete_one({"_id": number_doc["_id"]})
     await asyncio.sleep(180)
     await msg.delete()
+# ===== Admin Add (with Telethon StringSession generation) =====
+class AddSession(StatesGroup):
+    waiting_country = State()
+    waiting_number = State()
+    waiting_otp = State()
+    waiting_password = State()
 
-# ===== Admin: Add Number =====
-@dp.message(Command("addnumber"))
-async def cmd_add_number_start(msg: Message, state: FSMContext):
+# /add command – admin only
+@dp.message(Command("add"))
+async def cmd_add_start(msg: Message, state: FSMContext):
     if not is_admin(msg.from_user.id):
-        return await msg.answer("❌ Not authorized")
-    await msg.answer("Enter the country for the new number:")
-    await state.set_state(AddNumberStates.waiting_country)
+        return await msg.answer("❌ Not authorized.")
 
-@dp.message(AddNumberStates.waiting_country)
-async def add_number_country(msg: Message, state: FSMContext):
-    await state.update_data(country=msg.text.strip())
-    await msg.answer("Enter the phone number (with country code, e.g., +911234567890):")
-    await state.set_state(AddNumberStates.waiting_number)
+    countries = list(countries_col.find({}))
+    if not countries:
+        return await msg.answer("❌ No countries found. Add some countries first in DB.")
 
-@dp.message(AddNumberStates.waiting_number)
-async def add_number_number(msg: Message, state: FSMContext):
-    await state.update_data(number=msg.text.strip())
-    await msg.answer("Enter the password for this number:")
-    await state.set_state(AddNumberStates.waiting_password)
+    kb = InlineKeyboardBuilder()
+    for c in countries:
+        kb.button(text=c["name"], callback_data=f"add_country:{c['name']}")
+    kb.adjust(2)
+    await msg.answer("🌍 Select the country you want to add a number for:", reply_markup=kb.as_markup())
+    await state.set_state(AddSession.waiting_country)
 
-@dp.message(AddNumberStates.waiting_password)
-async def add_number_password(msg: Message, state: FSMContext):
+# Country selected
+@dp.callback_query(F.data.startswith("add_country:"))
+async def callback_add_country(cq: CallbackQuery, state: FSMContext):
+    await cq.answer()
+    _, country_name = cq.data.split(":", 1)
+    await state.update_data(country=country_name)
+    await cq.message.answer(f"📞 Enter the phone number for {country_name} (e.g., +14151234567):")
+    await state.set_state(AddSession.waiting_number)
+
+# Ask for OTP after number
+@dp.message(AddSession.waiting_number)
+async def add_number_get_code(msg: Message, state: FSMContext):
     data = await state.get_data()
     country = data["country"]
-    number = data["number"]
-    password = msg.text.strip()
+    phone = msg.text.strip()
+    await state.update_data(number=phone)
 
-    # Generate Telethon string session
-    client = TelegramClient(StringSession(), api_id=int(os.getenv("API_ID")), api_hash=os.getenv("API_HASH"))
+    api_id = int(os.getenv("API_ID"))
+    api_hash = os.getenv("API_HASH")
+
+    session = StringSession()
+    client = TelegramClient(session, api_id, api_hash)
+    await client.connect()
+
     try:
-        await client.connect()
-        session_str = StringSession().save()
-    finally:
+        await client.send_code_request(phone)
+        await msg.answer("📩 Code sent! Please enter the OTP you received on Telegram or SMS:")
+        await state.update_data(session=session.save())
+        await client.disconnect()
+        await state.set_state(AddSession.waiting_otp)
+    except Exception as e:
+        await client.disconnect()
+        await msg.answer(f"❌ Failed to send code: {e}")
+
+# After OTP entered
+@dp.message(AddSession.waiting_otp)
+async def add_number_verify_code(msg: Message, state: FSMContext):
+    data = await state.get_data()
+    country = data["country"]
+    phone = data["number"]
+    session_str = data["session"]
+
+    api_id = int(os.getenv("API_ID"))
+    api_hash = os.getenv("API_HASH")
+
+    client = TelegramClient(StringSession(session_str), api_id, api_hash)
+    await client.connect()
+
+    try:
+        await client.sign_in(phone=phone, code=msg.text.strip())
+        string_session = client.session.save()
         await client.disconnect()
 
-    # Save to DB
-    numbers_col.insert_one({
-        "country": country,
-        "number": number,
-        "password": password,
-        "string_session": session_str,
-        "used": False
-    })
-    countries_col.update_one({"name": country}, {"$setOnInsert": {"stock": 0, "price": 0}}, upsert=True)
+        numbers_col.insert_one({
+            "country": country,
+            "number": phone,
+            "string_session": string_session,
+            "used": False
+        })
+        countries_col.update_one({"name": country}, {"$inc": {"stock": 1}}, upsert=True)
+        await msg.answer(f"✅ Added number {phone} for {country} successfully!")
+        await state.clear()
 
-    await msg.answer(f"✅ Number {number} added for {country} with string session.")
-    await state.clear()
+    except Exception as e:
+        if "password" in str(e).lower():
+            await msg.answer("🔐 Two-step verification is enabled. Please send the password
 
 # ===== Register external handlers =====
 register_readymade_accounts_handlers(dp=dp, bot=bot, users_col=users_col)
