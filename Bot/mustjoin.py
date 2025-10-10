@@ -3,8 +3,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from config import MUST_JOIN_CHANNEL
 
 # Private channel details
-PRIVATE_CHANNEL_ID = -1002835889047
-PRIVATE_CHANNEL_LINK = "https://t.me/+yPfNnkEIS8U5NGM1"
+PRIVATE_CHANNEL_ID = -1002196760884
+PRIVATE_CHANNEL_LINK = "https://t.me/vth_otpbot_update"
 
 # Welcome text with HTML formatting
 WELCOME_TEXT = (
