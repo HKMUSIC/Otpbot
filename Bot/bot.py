@@ -12,6 +12,9 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from pymongo import MongoClient
 from telethon import TelegramClient
 from telethon.sessions import StringSession
+from telethon.errors import SessionPasswordNeededError
+import re
+from datetime import datetime, timezone
 
 from recharge_flow import register_recharge_handlers  # external recharge module
 from readymade_accounts import register_readymade_accounts_handlers
@@ -242,46 +245,67 @@ async def handle_quantity(msg: Message, state: FSMContext):
 
     await state.clear()
 
-
 # ===== Grab OTP Flow =====
 @dp.callback_query(F.data.startswith("grab_otp:"))
 async def callback_grab_otp(cq: CallbackQuery):
     await cq.answer("⏳ Fetching OTP...", show_alert=True)
     _, number_id = cq.data.split(":", 1)
 
+    # Get number document
     number_doc = await asyncio.to_thread(lambda: numbers_col.find_one({"_id": number_id}))
     if not number_doc:
-        return await cq.answer("❌ Number not found", show_alert=True)
+        return await cq.answer("❌ Number not found.", show_alert=True)
 
     string_session = number_doc.get("string_session")
-    api_id = int(os.getenv("API_ID"))
-    api_hash = os.getenv("API_HASH")
-
     if not string_session:
         return await cq.answer("❌ No string session found for this number.", show_alert=True)
 
+    api_id = int(os.getenv("API_ID"))
+    api_hash = os.getenv("API_HASH")
+
     async def fetch_otp():
         client = TelegramClient(StringSession(string_session), api_id, api_hash)
-        await client.connect()
         try:
-            code = ""
-            async for msg in client.iter_messages("777000", limit=5):
-                if msg.message and msg.message.isdigit():
-                    code = msg.message
-                    break
-            if code:
-                await cq.message.answer(f"🔑 OTP for {number_doc['number']}:\n<code>{code}</code>", parse_mode="HTML")
-            else:
-                await cq.message.answer("⚠️ No OTP received yet. Try again in a few seconds.")
+            await client.connect()
+            if not await client.is_user_authorized():
+                await cq.message.answer("⚠️ Session expired or not authorized. Please update this number session.")
+                await client.disconnect()
+                return
+
+            # Regex pattern for 5-digit code (Telegram’s login code format)
+            pattern = re.compile(r'\b\d{5}\b')
+
+            # Iterate over last few messages from official Telegram (777000)
+            async for msg in client.iter_messages(777000, limit=5):
+                if msg.message:
+                    match = pattern.search(msg.message)
+                    if match:
+                        code = match.group(0)
+                        await cq.message.answer(
+                            f"✅ OTP for {number_doc['number']}:\n<code>{code}</code>",
+                            parse_mode="HTML"
+                        )
+
+                        # Optional: Log OTP and time into DB
+                        await asyncio.to_thread(lambda: numbers_col.update_one(
+                            {"_id": number_doc["_id"]},
+                            {"$set": {"last_otp": code, "otp_fetched_at": datetime.now(timezone.utc)}}
+                        ))
+                        await client.disconnect()
+                        return
+
+            # If no OTP message found
+            await cq.message.answer("⚠️ No OTP found yet. Try again later.")
+            await client.disconnect()
+
         except SessionPasswordNeededError:
-            await cq.message.answer("🔐 2FA enabled. Please use password manually.")
+            await cq.message.answer("🔐 This account has 2FA enabled. OTP cannot be fetched automatically.")
+            await client.disconnect()
         except Exception as e:
-            await cq.message.answer(f"❌ Failed to grab OTP: {e}")
-        finally:
+            await cq.message.answer(f"❌ Error fetching OTP:\n<code>{html.escape(str(e))}</code>", parse_mode="HTML")
             await client.disconnect()
 
     asyncio.create_task(fetch_otp())
-
 
 
 
