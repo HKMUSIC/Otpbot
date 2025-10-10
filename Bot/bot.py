@@ -2,6 +2,7 @@ import os
 import asyncio
 import datetime
 import html
+from bson import ObjectId
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import Command, StateFilter
@@ -12,6 +13,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from pymongo import MongoClient
 from telethon import TelegramClient
 from telethon.sessions import StringSession
+from telethon.errors import SessionPasswordNeededError
 
 from recharge_flow import register_recharge_handlers  # external recharge module
 from readymade_accounts import register_readymade_accounts_handlers
@@ -36,6 +38,12 @@ dp = Dispatcher()
 class AddNumberStates(StatesGroup):
     waiting_country = State()
     waiting_number = State()
+    waiting_password = State()
+
+class AddSession(StatesGroup):
+    waiting_country = State()
+    waiting_number = State()
+    waiting_otp = State()
     waiting_password = State()
 
 # ===== Helpers =====
@@ -135,9 +143,7 @@ async def callback_country(cq: CallbackQuery):
     )
     await cq.message.edit_text(text, reply_markup=kb.as_markup())
 
-# ===== Buy Now Flow with OTP grab from string session =====
-from telethon.errors import SessionPasswordNeededError
-
+# ===== Buy Now Flow with OTP grab =====
 @dp.callback_query(F.data.startswith("buy_now:"))
 async def callback_buy_now(cq: CallbackQuery):
     await cq.answer()
@@ -172,7 +178,7 @@ async def callback_buy_now(cq: CallbackQuery):
     
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="🔑 Get OTP", callback_data=f"grab_otp:{number_doc['_id']}")
+        InlineKeyboardButton(text="🔑 Get OTP", callback_data=f"grab_otp:{str(number_doc['_id'])}")
     )
     
     text = (
@@ -186,12 +192,14 @@ async def callback_buy_now(cq: CallbackQuery):
     
     await cq.message.edit_text(text, reply_markup=kb.as_markup())
 
-
 @dp.callback_query(F.data.startswith("grab_otp:"))
 async def callback_grab_otp(cq: CallbackQuery):
     await cq.answer()
     _, number_id = cq.data.split(":", 1)
-    number_doc = numbers_col.find_one({"_id": number_id})
+    try:
+        number_doc = numbers_col.find_one({"_id": ObjectId(number_id)})
+    except:
+        return await cq.answer("❌ Invalid number ID.", show_alert=True)
     
     if not number_doc:
         return await cq.answer("❌ Number not found", show_alert=True)
@@ -226,24 +234,15 @@ async def callback_grab_otp(cq: CallbackQuery):
         await cq.message.answer(f"❌ Failed to grab OTP: {e}")
     finally:
         await client.disconnect()
-    
-# ===== Admin Add (with Telethon StringSession generation) =====
-class AddSession(StatesGroup):
-    waiting_country = State()
-    waiting_number = State()
-    waiting_otp = State()
-    waiting_password = State()
 
-# /add command – admin only
+# ===== Admin Add Number =====
 @dp.message(Command("add"))
 async def cmd_add_start(msg: Message, state: FSMContext):
     if not is_admin(msg.from_user.id):
         return await msg.answer("❌ Not authorized.")
-
     countries = list(countries_col.find({}))
     if not countries:
         return await msg.answer("❌ No countries found. Add some countries first in DB.")
-
     kb = InlineKeyboardBuilder()
     for c in countries:
         kb.button(text=c["name"], callback_data=f"add_country:{c['name']}")
@@ -251,8 +250,6 @@ async def cmd_add_start(msg: Message, state: FSMContext):
     await msg.answer("🌍 Select the country you want to add a number for:", reply_markup=kb.as_markup())
     await state.set_state(AddSession.waiting_country)
 
-
-# Country selected
 @dp.callback_query(F.data.startswith("add_country:"))
 async def callback_add_country(cq: CallbackQuery, state: FSMContext):
     await cq.answer()
@@ -261,8 +258,6 @@ async def callback_add_country(cq: CallbackQuery, state: FSMContext):
     await cq.message.answer(f"📞 Enter the phone number for {country_name} (e.g., +14151234567):")
     await state.set_state(AddSession.waiting_number)
 
-
-# Ask for OTP after number
 @dp.message(AddSession.waiting_number)
 async def add_number_get_code(msg: Message, state: FSMContext):
     data = await state.get_data()
@@ -290,8 +285,6 @@ async def add_number_get_code(msg: Message, state: FSMContext):
         await client.disconnect()
         await msg.answer(f"❌ Failed to send code: {e}")
 
-
-# After OTP entered
 @dp.message(AddSession.waiting_otp)
 async def add_number_verify_code(msg: Message, state: FSMContext):
     data = await state.get_data()
@@ -310,7 +303,6 @@ async def add_number_verify_code(msg: Message, state: FSMContext):
         await client.sign_in(phone=phone, code=msg.text.strip(), phone_code_hash=phone_code_hash)
         string_session = client.session.save()
         await client.disconnect()
-
         numbers_col.insert_one({
             "country": country,
             "number": phone,
@@ -320,7 +312,6 @@ async def add_number_verify_code(msg: Message, state: FSMContext):
         countries_col.update_one({"name": country}, {"$inc": {"stock": 1}}, upsert=True)
         await msg.answer(f"✅ Added number {phone} for {country} successfully!")
         await state.clear()
-
     except Exception as e:
         if "PASSWORD" in str(e).upper() or "two-step" in str(e).lower():
             await msg.answer("🔐 Two-step verification is enabled. Please send the password for this account:")
@@ -330,8 +321,6 @@ async def add_number_verify_code(msg: Message, state: FSMContext):
             await msg.answer(f"❌ Error verifying code: {e}")
             await client.disconnect()
 
-
-# If 2FA password is required
 @dp.message(AddSession.waiting_password)
 async def add_number_with_password(msg: Message, state: FSMContext):
     data = await state.get_data()
@@ -348,7 +337,6 @@ async def add_number_with_password(msg: Message, state: FSMContext):
         await client.sign_in(password=msg.text.strip())
         string_session = client.session.save()
         await client.disconnect()
-
         numbers_col.insert_one({
             "country": country,
             "number": phone,
@@ -362,7 +350,7 @@ async def add_number_with_password(msg: Message, state: FSMContext):
         await client.disconnect()
         await msg.answer(f"❌ Error signing in with password: {e}")
 
-# ===== Admin commands =====
+# ===== Admin commands: addcountry, removecountry, db =====
 @dp.message(Command("addcountry"))
 async def cmd_add_country(msg: Message):
     if not is_admin(msg.from_user.id):
@@ -383,13 +371,11 @@ async def handle_add_country(msg: Message):
     countries_col.update_one({"name": name.strip()}, {"$set": {"price": price, "stock": 0}}, upsert=True)
     await msg.answer(f"✅ Country {name.strip()} added/updated with price {price}.")
 
-
 @dp.message(Command("removecountry"))
 async def cmd_remove_country(msg: Message):
     if not is_admin(msg.from_user.id):
         return await msg.answer("❌ Not authorized.")
     await msg.answer("🌍 Send the country name to remove:")
-
 
 @dp.message()
 async def handle_remove_country(msg: Message):
@@ -397,7 +383,6 @@ async def handle_remove_country(msg: Message):
         return
     countries_col.delete_one({"name": msg.text.strip()})
     await msg.answer(f"✅ Country {msg.text.strip()} removed.")
-
 
 @dp.message(Command("db"))
 async def cmd_db(msg: Message):
@@ -408,7 +393,7 @@ async def cmd_db(msg: Message):
     for n in numbers:
         text += f"📱 {n['number']} | Country: {n['country']} | Used: {n['used']}\n"
     await msg.answer(text)
-        
+
 # ===== Register external handlers =====
 register_readymade_accounts_handlers(dp=dp, bot=bot, users_col=users_col)
 register_recharge_handlers(dp=dp, bot=bot, users_col=users_col, txns_col=db["transactions"], ADMIN_IDS=ADMIN_IDS)
