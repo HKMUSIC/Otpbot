@@ -20,7 +20,7 @@ from config import BOT_TOKEN, ADMIN_IDS
 from otp_fetcher import fetch_otp_for_number
 
 # ===== MongoDB Setup =====
-MONGO_URI = os.getenv("MONGO_URI") or "mongodb+srv://Sony:Sony123@sony0.soh6m14.mongodb.net/?retryWrites=true&w=majority&appName=Sony0"
+MONGO_URI = os.getenv("MONGO_URI") or "mongodb+srv://Venesa:Venesa000@venesa.ag5zkoi.mongodb.net/?retryWrites=true&w=majority&appName=Venesa"
 client = MongoClient(MONGO_URI)
 db = client["QuickCodes"]
 users_col = db["users"]
