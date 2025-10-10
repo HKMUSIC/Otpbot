@@ -166,7 +166,7 @@ async def send_country_menu(message, previous=""):
     kb.adjust(2)
 
     if previous:
-        kb.row(InlineKeyboardButton(text="🔙 Back", callback_data=previous))
+        kb.row(InlineKeyboardButton(text="🦸‍♂️ Support", url=f"https://t.me/valriking"))
 
     # Send a new message for country selection (do not edit the start message)
     country_msg = await message.answer("🌍 Select a country:", reply_markup=kb.as_markup())
