@@ -1,5 +1,4 @@
 import os
-import asyncio
 import datetime
 import html
 from aiogram import Bot, Dispatcher, types
@@ -13,11 +12,10 @@ from bson import ObjectId
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 
-# ----- CONFIGURATION -----
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
-ADMIN_IDS = [int(uid) for uid in os.getenv("ADMIN_IDS", "").split(",") if uid]
+ADMIN_IDS = [int(i) for i in os.getenv("ADMIN_IDS", "").split(",") if i]
 ORDER_CHANNEL_ID = os.getenv("ORDER_CHANNEL_ID")  # Channel ID as string, e.g., "-1001234567890"
 
 MONGO_URI = os.getenv("MONGO_URI")
@@ -31,7 +29,7 @@ numbers_col = db["numbers"]
 bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
-# ----- FSM States -----
+# FSM States
 class AddNumberStates(StatesGroup):
     waiting_country = State()
     waiting_number = State()
@@ -41,7 +39,7 @@ class AddNumberStates(StatesGroup):
 class AdminAdjustBalanceState(StatesGroup):
     waiting_input = State()
 
-# ----- Helpers -----
+# Helpers
 def is_admin(user_id):
     return user_id in ADMIN_IDS
 
@@ -52,7 +50,7 @@ def get_or_create_user(user_id, username):
         users_col.insert_one(user)
     return user
 
-# ----- Start/Welcome -----
+# Start/Welcome
 @dp.message_handler(commands="start")
 async def cmd_start(m: Message):
     get_or_create_user(m.from_user.id, m.from_user.username)
@@ -73,13 +71,13 @@ async def cmd_start(m: Message):
         reply_markup=kb
     )
 
-# ----- Balance -----
+# Balance
 @dp.callback_query_handler(lambda c: c.data == "balance")
 async def show_balance(cq: CallbackQuery):
     user = users_col.find_one({"_id": cq.from_user.id})
     await cq.answer(f"💰 Balance: {user['balance']:.2f} ₹" if user else "💰 Balance: 0 ₹", show_alert=True)
 
-# ----- Buy Flow -----
+# Countries Menu
 def country_menu_keyboard():
     kb = InlineKeyboardMarkup(row_width=2)
     countries = list(countries_col.find({}))
@@ -173,7 +171,7 @@ async def callback_buy_now(cq: CallbackQuery):
     except Exception:
         pass
 
-# ----- OTP Retrieval with 3 tries -----
+# OTP Retrieval with 3 tries
 @dp.callback_query_handler(lambda c: c.data.startswith("grab_otp_"))
 async def callback_grab_otp(cq: CallbackQuery):
     parts = cq.data.split("_")
@@ -209,7 +207,7 @@ async def callback_grab_otp(cq: CallbackQuery):
     finally:
         await client.disconnect()
 
-# ----- Admin: Add Country -----
+# Admin: Add Country
 @dp.message_handler(commands=["addcountry"])
 async def cmd_add_country(msg: Message):
     if not is_admin(msg.from_user.id):
@@ -224,7 +222,7 @@ async def handle_add_country(msg: Message):
     countries_col.update_one({"name": name.strip()}, {"$set": {"price": price}}, upsert=True)
     await msg.answer(f"✅ Country {name.strip()} added/updated: ₹{price}")
 
-# ----- Admin: Remove Country -----
+# Admin: Remove Country
 @dp.message_handler(commands=["removecountry"])
 async def cmd_remove_country(msg: Message):
     if not is_admin(msg.from_user.id):
@@ -243,7 +241,7 @@ async def callback_remove_country(cq: CallbackQuery):
     countries_col.delete_one({"name": country})
     await cq.message.edit_text(f"✅ Country {country} removed.")
 
-# ----- Admin: Credit/Debit -----
+# Admin: Credit/Debit
 @dp.message_handler(commands=["credit"])
 async def cmd_credit(msg: Message, state: FSMContext):
     if not is_admin(msg.from_user.id):
@@ -283,7 +281,6 @@ async def handle_adjust_balance(msg: Message, state: FSMContext):
     await msg.answer(f"✅ {action.capitalize()}ed ₹{amount:.2f}. New balance: ₹{new_balance:.2f}")
     await state.finish()
 
-# ----- MAIN -----
 if __name__ == "__main__":
     print("Bot started.")
     start_polling(dp, skip_updates=True)
