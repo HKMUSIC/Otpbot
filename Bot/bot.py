@@ -94,27 +94,32 @@ async def cmd_balance(msg: Message):
 
 # ===== Buy Flow =====
 async def send_country_menu(message, previous=""):
-    countries = list(countries_col.find({}))
+    countries = await asyncio.to_thread(lambda: list(countries_col.find({})))
     if not countries:
         return await message.edit_text("❌ No countries available. Admin must add stock first.")
+
     kb = InlineKeyboardBuilder()
     for c in countries:
         kb.button(text=html.escape(c["name"]), callback_data=f"country:{c['name']}")
     kb.adjust(2)
     if previous:
         kb.row(InlineKeyboardButton(text="🔙 Back", callback_data=previous))
+
     await message.edit_text("🌍 Select a country:", reply_markup=kb.as_markup())
 
-@dp.callback_query(F.data=="buy")
+
+@dp.callback_query(F.data == "buy")
 async def callback_buy(cq: CallbackQuery):
     await cq.answer()
     await send_country_menu(cq.message, previous="start_menu")
+
 
 @dp.callback_query(F.data.startswith("country:"))
 async def callback_country(cq: CallbackQuery):
     await cq.answer()
     _, country_name = cq.data.split(":", 1)
-    country = countries_col.find_one({"name": country_name})
+    
+    country = await asyncio.to_thread(lambda: countries_col.find_one({"name": country_name}))
     if not country:
         return await cq.answer("❌ Country not found", show_alert=True)
 
@@ -135,7 +140,6 @@ async def callback_country(cq: CallbackQuery):
     )
     await cq.message.edit_text(text, reply_markup=kb.as_markup())
 
-# ===== Buy Now Flow with OTP grab from string session =====
 
 # ===== Buy Now Flow =====
 @dp.callback_query(F.data.startswith("buy_now:"))
@@ -143,30 +147,32 @@ async def callback_buy_now(cq: CallbackQuery):
     await cq.answer()
     _, country_name = cq.data.split(":", 1)
 
-    # Fetch country and user safely in thread
-    country, user = await asyncio.to_thread(lambda: (
-        countries_col.find_one({"name": country_name}),
-        get_or_create_user(cq.from_user.id, cq.from_user.username)
-    ))
+    # Fetch data in thread to avoid blocking
+    def fetch_data():
+        country = countries_col.find_one({"name": country_name})
+        user = get_or_create_user(cq.from_user.id, cq.from_user.username)
+        number_doc = numbers_col.find_one({"country": country_name, "used": False})
+        return country, user, number_doc
+
+    country, user, number_doc = await asyncio.to_thread(fetch_data)
 
     if not country:
         return await cq.answer("❌ Country not found", show_alert=True)
 
     if user.get("balance", 0) < country.get("price", 0):
-        return await cq.answer("⚠️ Insufficient balance", show_alert=True)
+        return await cq.answer(
+            f"⚠️ Insufficient balance! Your balance: {user.get('balance', 0):.2f} ₹, Price: {country.get('price', 0):.2f} ₹",
+            show_alert=True
+        )
 
-    # Fetch available number safely
-    number_doc = await asyncio.to_thread(lambda: numbers_col.find_one({"country": country_name, "used": False}))
     if not number_doc:
-        return await cq.answer("❌ No available numbers for this country.", show_alert=True)
+        return await cq.answer("❌ No available numbers for this country. Try again later.", show_alert=True)
 
-    # Deduct balance & mark number used safely
+    # Deduct balance & mark number used
     new_balance = user["balance"] - country["price"]
     await asyncio.to_thread(lambda: users_col.update_one({"_id": user["_id"]}, {"$set": {"balance": new_balance}}))
     await asyncio.to_thread(lambda: numbers_col.update_one({"_id": number_doc["_id"]}, {"$set": {"used": True}}))
     await asyncio.to_thread(lambda: countries_col.update_one({"name": country_name}, {"$inc": {"stock": -1}}))
-
-    # Insert order safely
     await asyncio.to_thread(lambda: orders_col.insert_one({
         "user_id": user["_id"],
         "country": country_name,
@@ -177,9 +183,7 @@ async def callback_buy_now(cq: CallbackQuery):
     }))
 
     kb = InlineKeyboardBuilder()
-    kb.row(
-        InlineKeyboardButton(text="🔑 Get OTP", callback_data=f"grab_otp:{number_doc['_id']}")
-    )
+    kb.row(InlineKeyboardButton(text="🔑 Get OTP", callback_data=f"grab_otp:{number_doc['_id']}"))
 
     text = (
         f"✅ Purchase Successful!\n\n"
@@ -191,6 +195,7 @@ async def callback_buy_now(cq: CallbackQuery):
     )
 
     await cq.message.edit_text(text, reply_markup=kb.as_markup())
+
 
 # ===== Grab OTP Flow =====
 @dp.callback_query(F.data.startswith("grab_otp:"))
@@ -209,17 +214,15 @@ async def callback_grab_otp(cq: CallbackQuery):
     if not string_session:
         return await cq.answer("❌ No string session found for this number.", show_alert=True)
 
-    async def fetch_and_send_otp():
+    async def fetch_otp():
+        client = TelegramClient(StringSession(string_session), api_id, api_hash)
+        await client.connect()
         try:
-            client = TelegramClient(StringSession(string_session), api_id, api_hash)
-            await client.connect()
-
             code = ""
             async for msg in client.iter_messages("777000", limit=5):
                 if msg.message and msg.message.isdigit():
                     code = msg.message
                     break
-
             if code:
                 await cq.message.answer(f"🔑 OTP for {number_doc['number']}:\n<code>{code}</code>", parse_mode="HTML")
             else:
@@ -231,8 +234,7 @@ async def callback_grab_otp(cq: CallbackQuery):
         finally:
             await client.disconnect()
 
-    # Run OTP fetch in background
-    asyncio.create_task(fetch_and_send_otp())
+    asyncio.create_task(fetch_otp())
     
 # ===== Admin Add (with Telethon StringSession generation) =====
 class AddSession(StatesGroup):
