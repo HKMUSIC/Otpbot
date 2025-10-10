@@ -89,24 +89,70 @@ async def otp_listener(number_doc, user_id):
         await client.disconnect()
         await bot.send_message(user_id, f"❌ OTP listener error:\n<code>{html.escape(str(e))}</code>", parse_mode="HTML")
 
-# ================= START =================
-@dp.message(Command("start"))
-async def cmd_start(m: Message):
-    if not await check_join(bot, m):
-        return
+# ================= Buy Flow =================
+async def send_country_menu(message, previous="start_menu"):
+    countries = await asyncio.to_thread(lambda: list(countries_col.find({})))
+    if not countries:
+        return await message.edit_text("❌ No countries available. Admin must add stock first.")
+    
+    kb = InlineKeyboardBuilder()
+    for c in countries:
+        kb.button(text=html.escape(c["name"]), callback_data=f"country:{c['name']}")
+    kb.adjust(2)
+    
+    # Back button callback
+    if previous:
+        kb.row(InlineKeyboardButton(text="🔙 Back", callback_data=previous))
+    
+    # Edit the same message
+    await message.edit_text("🌍 Select a country:", reply_markup=kb.as_markup())
 
-    # Ensure user exists in DB
-    get_or_create_user(m.from_user.id, m.from_user.username)
 
-    # Caption text
+@dp.callback_query(F.data == "buy")
+async def callback_buy(cq: CallbackQuery):
+    await cq.answer()
+    await send_country_menu(cq.message, previous="start_menu")
+
+
+@dp.callback_query(F.data.startswith("country:"))
+async def callback_country(cq: CallbackQuery):
+    await cq.answer()
+    _, country_name = cq.data.split(":", 1)
+    country = await asyncio.to_thread(lambda: countries_col.find_one({"name": country_name}))
+    if not country:
+        return await cq.answer("❌ Country not found", show_alert=True)
+    
+    text = (
+        f"⚡ Telegram Account Info\n\n"
+        f"🌍 Country : {html.escape(country['name'])}\n"
+        f"💸 Price : ₹{country['price']}\n"
+        f"📦 Available : {country['stock']}\n"
+        f"🔍 Reliable | Affordable | Good Quality\n\n"
+        f"⚠️ Use Telegram X only to login.\n"
+        f"🚫 Not responsible for freeze/ban."
+    )
+    
+    kb = InlineKeyboardBuilder()
+    kb.row(
+        InlineKeyboardButton(text="💳 Buy Now", callback_data=f"buy_now:{country_name}"),
+        kb.button(text="🔙 Back", callback_data="buy")  # Back edits the message to country menu
+    )
+    
+    await cq.message.edit_text(text, reply_markup=kb.as_markup())
+
+
+# ================= Back to Start Menu =================
+@dp.callback_query(F.data == "start_menu")
+async def callback_start_menu(cq: CallbackQuery):
+    await cq.answer()
+    
     caption = (
         "<b>Welcome to Bot – ⚡ Fastest Telegram OTP Bot!</b>\n"
         "<i>📖 How to use Bot:</i>\n"
         "1️⃣ Recharge\n2️⃣ Select Country\n3️⃣ Buy Account and 📩 Receive OTP\n"
         "🚀 Enjoy Fast OTP Services!"
     )
-
-    # Inline keyboard
+    
     kb = InlineKeyboardBuilder()
     kb.row(
         InlineKeyboardButton(text="💵 Balance", callback_data="balance"),
@@ -121,11 +167,8 @@ async def cmd_start(m: Message):
         InlineKeyboardButton(text="🆘 How to Use?", callback_data="howto")
     )
 
-    # Step 1: Send the 🥂 emoji first
-    menu_msg = await m.answer("🥂")
-
-    # Step 2: Edit the same message into a video with caption
-    await menu_msg.edit_media(
+    # Edit the original start video message
+    await cq.message.edit_media(
         media=InputMediaVideo(
             media="https://files.catbox.moe/n156be.mp4",
             caption=caption,
@@ -133,61 +176,6 @@ async def cmd_start(m: Message):
         ),
         reply_markup=kb.as_markup()
     )
-
-# ================= Balance =================
-@dp.callback_query(F.data=="balance")
-async def show_balance(cq: CallbackQuery):
-    user = users_col.find_one({"_id": cq.from_user.id})
-    await cq.answer(f"💰 Balance: {user['balance']:.2f} ₹" if user else "💰 Balance: 0 ₹", show_alert=True)
-
-@dp.message(Command("balance"))
-async def cmd_balance(msg: Message):
-    user = users_col.find_one({"_id": msg.from_user.id})
-    await msg.answer(f"💰 Balance: {user['balance']:.2f} ₹" if user else "💰 Balance: 0 ₹")
-
-# ================= Buy Flow =================
-async def send_country_menu(message, previous=""):
-    countries = await asyncio.to_thread(lambda: list(countries_col.find({})))
-    if not countries:
-        return await message.answer("❌ No countries available. Admin must add stock first.")
-    
-    kb = InlineKeyboardBuilder()
-for c in countries:
-    kb.button(text=html.escape(c["name"]), callback_data=f"country:{c['name']}")
-    kb.adjust(2)
-
-    if previous:
-    kb.row(InlineKeyboardButton(text="🔙 Back", callback_data=previous))
-
-# Edit the same message instead of sending a new one
-    await message.edit_text("🌍 Select a country:", reply_markup=kb.as_markup())
-
-@dp.callback_query(F.data == "buy")
-async def callback_buy(cq: CallbackQuery):
-    await cq.answer()
-    await send_country_menu(cq.message, previous="start_menu")
-@dp.callback_query(F.data.startswith("country:"))
-async def callback_country(cq: CallbackQuery):
-    await cq.answer()
-    _, country_name = cq.data.split(":", 1)
-    country = await asyncio.to_thread(lambda: countries_col.find_one({"name": country_name}))
-    if not country:
-        return await cq.answer("❌ Country not found", show_alert=True)
-    text = (
-        f"⚡ Telegram Account Info\n\n"
-        f"🌍 Country : {html.escape(country['name'])}\n"
-        f"💸 Price : ₹{country['price']}\n"
-        f"📦 Available : {country['stock']}\n"
-        f"🔍 Reliable | Affordable | Good Quality\n\n"
-        f"⚠️ Use Telegram X only to login.\n"
-        f"🚫 Not responsible for freeze/ban."
-    )
-    kb = InlineKeyboardBuilder()
-    kb.row(
-        InlineKeyboardButton(text="💳 Buy Now", callback_data=f"buy_now:{country_name}"),
-        InlineKeyboardButton(text="🔙 Back", callback_data="buy")
-    )
-    await cq.message.edit_text(text, reply_markup=kb.as_markup())
 
 # ================= Buy Now Flow =================
 @dp.callback_query(F.data.startswith("buy_now:"))
