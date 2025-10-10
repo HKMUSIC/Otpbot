@@ -6,6 +6,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from bson import ObjectId
+from aiogram.filters import StateFilter
 
 # ========== FSM ==========
 class RechargeState(StatesGroup):
