@@ -10,16 +10,17 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from pymongo import MongoClient
-from telethon import TelegramClient
+from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from telethon.errors import SessionPasswordNeededError
 import re
+
 from recharge_flow import register_recharge_handlers
 from readymade_accounts import register_readymade_accounts_handlers
 from mustjoin import check_join
 from config import BOT_TOKEN, ADMIN_IDS
 
-# ===== MongoDB Setup =====
+# ================= MongoDB Setup =================
 MONGO_URI = os.getenv("MONGO_URI") or "mongodb+srv://Sony:Sony123@sony0.soh6m14.mongodb.net/?retryWrites=true&w=majority&appName=Sony0"
 client = MongoClient(MONGO_URI)
 db = client["QuickCodes"]
@@ -28,17 +29,20 @@ orders_col = db["orders"]
 countries_col = db["countries"]
 numbers_col = db["numbers"]
 
-# ===== Bot Setup =====
+# ================= Bot Setup =================
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
 
-# ===== FSM =====
+# ================= FSM =================
 class AddNumberStates(StatesGroup):
     waiting_country = State()
     waiting_number = State()
     waiting_password = State()
 
-# ===== Helpers =====
+# ================= OTP Listener Global Dict =================
+active_otp_listeners: dict[str, TelegramClient] = {}
+
+# ================= Helpers =================
 def get_or_create_user(user_id: int, username: str | None):
     user = users_col.find_one({"_id": user_id})
     if not user:
@@ -49,7 +53,7 @@ def get_or_create_user(user_id: int, username: str | None):
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
 
-# ===== START =====
+# ================= START =================
 @dp.message(Command("start"))
 async def cmd_start(m: Message):
     if not await check_join(bot, m):
@@ -77,7 +81,7 @@ async def cmd_start(m: Message):
     menu_msg = await m.answer("Loading menu...", reply_markup=None)
     await menu_msg.edit_text(text, reply_markup=kb.as_markup())
 
-# ===== Balance =====
+# ================= Balance =================
 @dp.callback_query(F.data=="balance")
 async def show_balance(cq: CallbackQuery):
     user = users_col.find_one({"_id": cq.from_user.id})
@@ -88,7 +92,7 @@ async def cmd_balance(msg: Message):
     user = users_col.find_one({"_id": msg.from_user.id})
     await msg.answer(f"💰 Balance: {user['balance']:.2f} ₹" if user else "💰 Balance: 0 ₹")
 
-# ===== Buy Flow =====
+# ================= Buy Flow =================
 async def send_country_menu(message, previous=""):
     countries = await asyncio.to_thread(lambda: list(countries_col.find({})))
     if not countries:
@@ -129,7 +133,7 @@ async def callback_country(cq: CallbackQuery):
     )
     await cq.message.edit_text(text, reply_markup=kb.as_markup())
 
-# ===== Buy Now Flow =====
+# ================= Buy Now Flow =================
 @dp.callback_query(F.data.startswith("buy_now:"))
 async def callback_buy_now(cq: CallbackQuery, state: FSMContext):
     await cq.answer()
@@ -147,7 +151,7 @@ async def callback_buy_now(cq: CallbackQuery, state: FSMContext):
         "📝 Send only a number (e.g., 1, 5, 10)."
     )
 
-# ===== Handle Quantity =====
+# ================= Handle Quantity =================
 @dp.message(StateFilter("waiting_quantity"))
 async def handle_quantity(msg: Message, state: FSMContext):
     data = await state.get_data()
@@ -209,10 +213,10 @@ async def handle_quantity(msg: Message, state: FSMContext):
         )
     await state.clear()
 
-# ===== Grab OTP Flow =====
+# ================= Real-Time OTP Listener =================
 @dp.callback_query(F.data.startswith("grab_otp:"))
 async def callback_grab_otp(cq: CallbackQuery):
-    await cq.answer("⏳ Fetching OTP...", show_alert=True)
+    await cq.answer("⏳ Starting OTP listener...", show_alert=True)
     _, number_id = cq.data.split(":", 1)
 
     number_doc = await asyncio.to_thread(lambda: numbers_col.find_one({"_id": number_id}))
@@ -226,40 +230,36 @@ async def callback_grab_otp(cq: CallbackQuery):
     api_id = int(os.getenv("API_ID"))
     api_hash = os.getenv("API_HASH")
 
-    async def fetch_otp():
-        client = TelegramClient(StringSession(string_session), api_id, api_hash)
-        try:
-            await client.connect()
-            if not await client.is_user_authorized():
-                await cq.message.answer("⚠️ Session expired or not authorized. Please update this number session.")
+    if number_id in active_otp_listeners:
+        return await cq.answer("⚠️ OTP listener already running for this number.", show_alert=True)
+
+    client = TelegramClient(StringSession(string_session), api_id, api_hash)
+    active_otp_listeners[number_id] = client
+
+    pattern = re.compile(r"\b\d{4,6}\b")
+
+    async def handler(event):
+        if event.message and event.message.message:
+            match = pattern.search(event.message.message)
+            if match:
+                code = match.group(0)
+                await cq.message.answer(f"✅ OTP for {number_doc['number']}:\n<code>{code}</code>", parse_mode="HTML")
+                await asyncio.to_thread(lambda: numbers_col.update_one(
+                    {"_id": number_doc["_id"]},
+                    {"$set": {"last_otp": code, "otp_fetched_at": datetime.now(timezone.utc)}}
+                ))
                 await client.disconnect()
-                return
+                active_otp_listeners.pop(number_id, None)
 
-            pattern = re.compile(r'\b\d{5}\b')
-            async for msg in client.iter_messages(777000, limit=5):
-                if msg.message:
-                    match = pattern.search(msg.message)
-                    if match:
-                        code = match.group(0)
-                        await cq.message.answer(f"✅ OTP for {number_doc['number']}:\n<code>{code}</code>", parse_mode="HTML")
-                        await asyncio.to_thread(lambda: numbers_col.update_one(
-                            {"_id": number_doc["_id"]},
-                            {"$set": {"last_otp": code, "otp_fetched_at": datetime.now(timezone.utc)}}
-                        ))
-                        await client.disconnect()
-                        return
+    client.add_event_handler(handler, events.NewMessage(chats=777000))
 
-            await cq.message.answer("⚠️ No OTP found yet. Try again later.")
-            await client.disconnect()
-
-        except SessionPasswordNeededError:
-            await cq.message.answer("🔐 This account has 2FA enabled. OTP cannot be fetched automatically.")
-            await client.disconnect()
-        except Exception as e:
-            await cq.message.answer(f"❌ Error fetching OTP:\n<code>{html.escape(str(e))}</code>", parse_mode="HTML")
-            await client.disconnect()
-
-    asyncio.create_task(fetch_otp())
+    try:
+        await client.start()
+        await cq.message.answer("⏳ OTP listener started. Waiting for new OTP...")
+        await client.run_until_disconnected()
+    except Exception as e:
+        await cq.message.answer(f"❌ OTP listener error:\n<code>{html.escape(str(e))}</code>", parse_mode="HTML")
+        active_otp_listeners.pop(number_id, None)
 
 # ===== Admin Add Number Flow =====
 class AddSession(StatesGroup):
