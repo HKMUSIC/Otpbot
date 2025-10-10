@@ -141,30 +141,35 @@ async def cmd_start(m: Message):
         await menu_msg.edit_text(caption, reply_markup=kb.as_markup())
         print("Start video edit failed:", e)
 
+
+# ================= Balance =================
+@dp.callback_query(F.data=="balance")
+async def show_balance(cq: CallbackQuery):
+    user = users_col.find_one({"_id": cq.from_user.id})
+    await cq.answer(f"💰 Balance: {user['balance']:.2f} ₹" if user else "💰 Balance: 0 ₹", show_alert=True)
+
+@dp.message(Command("balance"))
+async def cmd_balance(msg: Message):
+    user = users_col.find_one({"_id": msg.from_user.id})
+    await msg.answer(f"💰 Balance: {user['balance']:.2f} ₹" if user else "💰 Balance: 0 ₹")
+
 # ================= Buy Flow =================
-async def send_country_menu(message, previous="start_menu"):
+async def send_country_menu(message, previous=""):
     countries = await asyncio.to_thread(lambda: list(countries_col.find({})))
     if not countries:
         return await message.edit_text("❌ No countries available. Admin must add stock first.")
-    
     kb = InlineKeyboardBuilder()
     for c in countries:
         kb.button(text=html.escape(c["name"]), callback_data=f"country:{c['name']}")
     kb.adjust(2)
-    
-    # Back button callback
     if previous:
         kb.row(InlineKeyboardButton(text="🔙 Back", callback_data=previous))
-    
-    # Edit the same message
     await message.edit_text("🌍 Select a country:", reply_markup=kb.as_markup())
-
 
 @dp.callback_query(F.data == "buy")
 async def callback_buy(cq: CallbackQuery):
     await cq.answer()
     await send_country_menu(cq.message, previous="start_menu")
-
 
 @dp.callback_query(F.data.startswith("country:"))
 async def callback_country(cq: CallbackQuery):
@@ -173,7 +178,6 @@ async def callback_country(cq: CallbackQuery):
     country = await asyncio.to_thread(lambda: countries_col.find_one({"name": country_name}))
     if not country:
         return await cq.answer("❌ Country not found", show_alert=True)
-    
     text = (
         f"⚡ Telegram Account Info\n\n"
         f"🌍 Country : {html.escape(country['name'])}\n"
@@ -183,51 +187,13 @@ async def callback_country(cq: CallbackQuery):
         f"⚠️ Use Telegram X only to login.\n"
         f"🚫 Not responsible for freeze/ban."
     )
-    
     kb = InlineKeyboardBuilder()
     kb.row(
         InlineKeyboardButton(text="💳 Buy Now", callback_data=f"buy_now:{country_name}"),
-        kb.button(text="🔙 Back", callback_data="buy")  # Back edits the message to country menu
+        InlineKeyboardButton(text="🔙 Back", callback_data="buy")
     )
-    
     await cq.message.edit_text(text, reply_markup=kb.as_markup())
 
-
-# ================= Back to Start Menu =================
-@dp.callback_query(F.data == "start_menu")
-async def callback_start_menu(cq: CallbackQuery):
-    await cq.answer()
-    
-    caption = (
-        "<b>Welcome to Bot – ⚡ Fastest Telegram OTP Bot!</b>\n"
-        "<i>📖 How to use Bot:</i>\n"
-        "1️⃣ Recharge\n2️⃣ Select Country\n3️⃣ Buy Account and 📩 Receive OTP\n"
-        "🚀 Enjoy Fast OTP Services!"
-    )
-    
-    kb = InlineKeyboardBuilder()
-    kb.row(
-        InlineKeyboardButton(text="💵 Balance", callback_data="balance"),
-        InlineKeyboardButton(text="🛒 Buy Account", callback_data="buy")
-    )
-    kb.row(
-        InlineKeyboardButton(text="💳 Recharge", callback_data="recharge"),
-        InlineKeyboardButton(text="🛠️ Support", url="https://t.me/valriking")
-    )
-    kb.row(
-        InlineKeyboardButton(text="📦 Your Info", callback_data="stats"),
-        InlineKeyboardButton(text="🆘 How to Use?", callback_data="howto")
-    )
-
-    # Edit the original start video message
-    await cq.message.edit_media(
-        media=InputMediaVideo(
-            media="https://files.catbox.moe/n156be.mp4",
-            caption=caption,
-            parse_mode="HTML"
-        ),
-        reply_markup=kb.as_markup()
-    )
 # ================= Buy Now Flow =================
 @dp.callback_query(F.data.startswith("buy_now:"))
 async def callback_buy_now(cq: CallbackQuery, state: FSMContext):
