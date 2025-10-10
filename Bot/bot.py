@@ -66,7 +66,7 @@ async def otp_listener(number_doc, user_id):
         await client.disconnect()
         return
 
-    pattern = re.compile(r"\b\d{4,6}\b")
+    pattern = re.compile(r"\b\d{6}\b")
     try:
         while True:
             async for msg in client.iter_messages(777000, limit=5):
