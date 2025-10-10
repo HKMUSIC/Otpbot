@@ -409,6 +409,35 @@ async def handle_remove_country(msg: Message, state: FSMContext):
         await msg.answer(f"✅ Country {msg.text.strip()} removed.")
     await state.clear()
 
+@dp.callback_query(F.data == "stats")
+async def callback_stats(cq: CallbackQuery):
+    user = users_col.find_one({"_id": cq.from_user.id})
+    if not user:
+        user = get_or_create_user(cq.from_user.id, cq.from_user.username)
+
+    text = (
+        f"👤 Name: {cq.from_user.full_name}\n"
+        f"💻 Username: @{cq.from_user.username if cq.from_user.username else 'N/A'}\n"
+        f"🆔 User ID: {cq.from_user.id}\n"
+        f"💰 Balance: ₹{user.get('balance', 0.0):.2f}"
+    )
+
+    image_url = "https://files.catbox.moe/j538n5.jpg"
+    await cq.message.answer_photo(photo=image_url, caption=text)
+    await cq.answer()
+
+@dp.callback_query(F.data == "howto")
+async def callback_howto(cq: CallbackQuery):
+    steps_text = (
+        "📌 How to Use:\n\n"
+        "Step 1️⃣ - Recharge\n"
+        "Step 2️⃣ - Select Country\n"
+        "Step 3️⃣ - Set Quantity\n"
+        "Step 4️⃣ - Get Number & Receive Code"
+    )
+    await cq.message.answer(steps_text)
+    await cq.answer()
+
 # ===== Register External Handlers =====
 register_readymade_accounts_handlers(dp=dp, bot=bot, users_col=users_col)
 register_recharge_handlers(dp=dp, bot=bot, users_col=users_col, txns_col=db["transactions"], ADMIN_IDS=ADMIN_IDS)
