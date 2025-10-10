@@ -74,7 +74,7 @@ async def cmd_start(m: Message):
     )
     kb.row(
         InlineKeyboardButton(text="💳 Recharge", callback_data="recharge"),
-        InlineKeyboardButton("🛠️ Support", url="https://t.me/iamvalrik")
+        InlineKeyboardButton(text="🛠️ Support", url="https://t.me/iamvalrik")
     )
     kb.row(
         InlineKeyboardButton(text="📦 Your Info", callback_data="stats"),
