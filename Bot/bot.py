@@ -135,27 +135,32 @@ async def callback_country(cq: CallbackQuery):
     )
     await cq.message.edit_text(text, reply_markup=kb.as_markup())
 
+# ===== Buy Now Flow with OTP grab from string session =====
+from telethon.errors import SessionPasswordNeededError
+
 @dp.callback_query(F.data.startswith("buy_now:"))
 async def callback_buy_now(cq: CallbackQuery):
     await cq.answer()
     _, country_name = cq.data.split(":", 1)
+    
     country = countries_col.find_one({"name": country_name})
-    if not country or country["stock"] <= 0:
-        return await cq.answer("❌ Out of stock or country not found", show_alert=True)
-
+    if not country:
+        return await cq.answer("❌ Country not found", show_alert=True)
+    
     user = get_or_create_user(cq.from_user.id, cq.from_user.username)
+    
     if user["balance"] < country["price"]:
         return await cq.answer("⚠️ Insufficient balance", show_alert=True)
-
+    
     number_doc = numbers_col.find_one({"country": country_name, "used": False})
     if not number_doc:
         return await cq.answer("❌ No available numbers for this country.", show_alert=True)
-
+    
     # Deduct balance and mark number as used
     users_col.update_one({"_id": user["_id"]}, {"$inc": {"balance": -country["price"]}})
     numbers_col.update_one({"_id": number_doc["_id"]}, {"$set": {"used": True}})
     countries_col.update_one({"name": country_name}, {"$inc": {"stock": -1}})
-
+    
     orders_col.insert_one({
         "user_id": user["_id"],
         "country": country_name,
@@ -164,49 +169,63 @@ async def callback_buy_now(cq: CallbackQuery):
         "status": "purchased",
         "created_at": datetime.datetime.utcnow()
     })
-
+    
+    kb = InlineKeyboardBuilder()
+    kb.row(
+        InlineKeyboardButton(text="🔑 Get OTP", callback_data=f"grab_otp:{number_doc['_id']}")
+    )
+    
     text = (
         f"✅ Purchase Successful!\n\n"
         f"🌍 Country: {html.escape(country_name)}\n"
-        f"📱 Number: {html.escape(number_doc['number'])}\n"
+        f"📱 Your Number: {html.escape(number_doc['number'])}\n"
         f"💸 Deducted: {country['price']}\n"
         f"💰 Balance Left: {user['balance'] - country['price']:.2f}\n\n"
-        "👉 Copy the number and open Telegram X, paste the number, request login."
+        "👉 Click below to get OTP when you are ready to login in Telegram."
     )
-
-    kb = InlineKeyboardBuilder()
-    kb.row(
-        InlineKeyboardButton(text="📋 Copy Number", callback_data=f"copy_number:{number_doc['number']}"),
-        InlineKeyboardButton(text="🔑 Get OTP", callback_data=f"get_otp:{number_doc['_id']}")
-    )
-    kb.row(InlineKeyboardButton(text="🔙 Back", callback_data=f"country:{country_name}"))
+    
     await cq.message.edit_text(text, reply_markup=kb.as_markup())
 
-# ===== Get OTP =====
-@dp.callback_query(F.data.startswith("get_otp:"))
-async def callback_get_otp(cq: CallbackQuery):
+
+@dp.callback_query(F.data.startswith("grab_otp:"))
+async def callback_grab_otp(cq: CallbackQuery):
     await cq.answer()
     _, number_id = cq.data.split(":", 1)
     number_doc = numbers_col.find_one({"_id": number_id})
+    
     if not number_doc:
         return await cq.answer("❌ Number not found", show_alert=True)
-
-    otp = await fetch_otp_for_number(number_doc)
-    if not otp:
-        return await cq.answer("❌ Failed to fetch OTP. Try again.", show_alert=True)
-
-    text = (
-        f"🚚 OTP Delivered Successfully!\n\n"
-        f"📱 {html.escape(number_doc['number'])}\n"
-        f"🔑 OTP: {otp}\n"
-        f"PASS: {html.escape(number_doc['password'])}\n\n"
-        "⚠️ This message will be deleted after 3 minutes.\n"
-        "👉 Enter this OTP in Telegram X. Max 2 attempts."
-    )
-    msg = await cq.message.answer(text)
-    numbers_col.delete_one({"_id": number_doc["_id"]})
-    await asyncio.sleep(180)
-    await msg.delete()
+    
+    string_session = number_doc.get("string_session")
+    api_id = int(os.getenv("API_ID"))
+    api_hash = os.getenv("API_HASH")
+    
+    if not string_session:
+        return await cq.answer("❌ No string session found for this number.", show_alert=True)
+    
+    client = TelegramClient(StringSession(string_session), api_id, api_hash)
+    await client.connect()
+    
+    try:
+        code = ""
+        async for msg in client.iter_messages("777000", limit=5):
+            if msg.message and msg.message.isdigit():
+                code = msg.message
+                break
+        
+        if not code:
+            await cq.answer("⚠️ No OTP received yet. Try again in a few seconds.", show_alert=True)
+        else:
+            await cq.message.answer(
+                f"🔑 OTP for {number_doc['number']}:\n<code>{code}</code>",
+                parse_mode="HTML"
+            )
+    except SessionPasswordNeededError:
+        await cq.message.answer("🔐 This account has 2FA enabled. Use the password manually.")
+    except Exception as e:
+        await cq.message.answer(f"❌ Failed to grab OTP: {e}")
+    finally:
+        await client.disconnect()
     
 # ===== Admin Add (with Telethon StringSession generation) =====
 class AddSession(StatesGroup):
@@ -342,6 +361,53 @@ async def add_number_with_password(msg: Message, state: FSMContext):
     except Exception as e:
         await client.disconnect()
         await msg.answer(f"❌ Error signing in with password: {e}")
+
+# ===== Admin commands =====
+@dp.message(Command("addcountry"))
+async def cmd_add_country(msg: Message):
+    if not is_admin(msg.from_user.id):
+        return await msg.answer("❌ Not authorized.")
+    await msg.answer("🌍 Send the country name and price separated by a comma (e.g., India,50):")
+
+@dp.message()
+async def handle_add_country(msg: Message):
+    if not is_admin(msg.from_user.id):
+        return
+    if "," not in msg.text:
+        return
+    name, price = msg.text.split(",", 1)
+    try:
+        price = float(price.strip())
+    except ValueError:
+        return await msg.answer("❌ Invalid price format.")
+    countries_col.update_one({"name": name.strip()}, {"$set": {"price": price, "stock": 0}}, upsert=True)
+    await msg.answer(f"✅ Country {name.strip()} added/updated with price {price}.")
+
+
+@dp.message(Command("removecountry"))
+async def cmd_remove_country(msg: Message):
+    if not is_admin(msg.from_user.id):
+        return await msg.answer("❌ Not authorized.")
+    await msg.answer("🌍 Send the country name to remove:")
+
+
+@dp.message()
+async def handle_remove_country(msg: Message):
+    if not is_admin(msg.from_user.id):
+        return
+    countries_col.delete_one({"name": msg.text.strip()})
+    await msg.answer(f"✅ Country {msg.text.strip()} removed.")
+
+
+@dp.message(Command("db"))
+async def cmd_db(msg: Message):
+    if not is_admin(msg.from_user.id):
+        return await msg.answer("❌ Not authorized.")
+    numbers = numbers_col.find({})
+    text = "<b>All numbers in DB:</b>\n\n"
+    for n in numbers:
+        text += f"📱 {n['number']} | Country: {n['country']} | Used: {n['used']}\n"
+    await msg.answer(text)
         
 # ===== Register external handlers =====
 register_readymade_accounts_handlers(dp=dp, bot=bot, users_col=users_col)
