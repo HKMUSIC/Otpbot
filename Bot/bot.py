@@ -75,7 +75,7 @@ async def otp_listener(number_doc, user_id):
                         code = match.group(0)
                         await bot.send_message(
                             user_id,
-                            f"✅ OTP for {number_doc['number']}:\n<code>{code}</code>",
+                            f"✅ OTP for +{number_doc['number']}:\n<code>{code}</code>\n\n<pre>Order Completed ✅</pre>",
                             parse_mode="HTML"
                         )
                         numbers_col.update_one(
@@ -108,7 +108,7 @@ async def cmd_start(m: Message):
     )
     kb.row(
         InlineKeyboardButton(text="💳 Recharge", callback_data="recharge"),
-        InlineKeyboardButton(text="🛠️ Support", url="https://t.me/iamvalrik")
+        InlineKeyboardButton(text="🛠️ Support", url="https://t.me/valriking")
     )
     kb.row(
         InlineKeyboardButton(text="📦 Your Info", callback_data="stats"),
@@ -242,7 +242,7 @@ async def handle_quantity(msg: Message, state: FSMContext):
     # Send numbers and start OTP listeners automatically
     for num in unsold_numbers:
         await msg.answer(
-            f"✅ Purchased {country_name} account!\n📱 Number: {num['number']}\n💸 Deducted: ₹{country_price}\n💰 Balance Left: ₹{new_balance:.2f}"
+            f"<pre>✅ Purchased {country_name} account!</pre>\n📱 Number:<code> {num['number']}</code>\n💸 Deducted: ₹{country_price}\n💰 Balance Left: ₹{new_balance:.2f}\n\n<pre>Note: If any problem receiving OTP, then please Instantly DM support @valriking</pre>"
         )
         # start OTP listener in background
         asyncio.create_task(otp_listener(num, msg.from_user.id))
@@ -359,8 +359,8 @@ async def add_number_with_password(msg: Message, state: FSMContext):
         countries_col.update_one({"name": country}, {"$inc": {"stock": 1}}, upsert=True)
         # Send confirmation with string session for verification
         await msg.answer(
-            f"✅ Added number {phone} (with 2FA) for {country} successfully!\n"
-            f"🔑 String Session:\n<code>{string_session}</code>",
+            f"✅ Added number {phone} (with 2FA) for {country} successfully!\n\n"
+            f"🔑 String Session:\n<blockquote expandable><code>{string_session}</code></blockquote>",
             parse_mode="HTML"
         )
         await state.clear()
