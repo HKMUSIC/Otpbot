@@ -89,11 +89,6 @@ async def show_balance(cq: CallbackQuery):
     user = users_col.find_one({"_id": cq.from_user.id})
     await cq.answer(f"💰 Balance: {user['balance']:.2f} ₹" if user else "💰 Balance: 0 ₹", show_alert=True)
 
-@dp.message(Command("balance"))
-async def cmd_balance(msg: Message):
-    user = users_col.find_one({"_id": msg.from_user.id})
-    await msg.answer(f"💰 Balance: {user['balance']:.2f} ₹" if user else "💰 Balance: 0 ₹")
-
 # ===== BUY FLOW =====
 async def send_country_menu(message, previous=""):
     countries = list(countries_col.find({}))
@@ -119,6 +114,7 @@ async def callback_country(cq: CallbackQuery):
     country = countries_col.find_one({"name": country_name})
     if not country:
         return await cq.answer("❌ Country not found", show_alert=True)
+    
     text = (
         f"⚡ Telegram Account Info\n\n"
         f"🌍 Country : {html.escape(country['name'])}\n"
@@ -131,8 +127,8 @@ async def callback_country(cq: CallbackQuery):
     
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="💳 Buy Now", callback_data=f"buy_now : {country_name}"),
-        InlinekeyboardButton(text="🔙 Back", callback_data="buy")
+        InlineKeyboardButton(text="💳 Buy Now", callback_data=f"buy_now:{country_name}"),
+        InlineKeyboardButton(text="🔙 Back", callback_data="buy")
     )
     
     await cq.message.edit_text(text, reply_markup=kb.as_markup())
@@ -142,43 +138,49 @@ async def callback_country(cq: CallbackQuery):
 async def callback_buy_now(cq: CallbackQuery):
     await cq.answer()
     _, country_name = cq.data.split(":", 1)
+    
     country = countries_col.find_one({"name": country_name})
     if not country:
         return await cq.answer("❌ Country not found", show_alert=True)
-
+    
     user = get_or_create_user(cq.from_user.id, cq.from_user.username)
-    if user["balance"] < country["price"]:
+    price = country.get("price", 0)
+    stock = country.get("stock", 0)
+    balance = user.get("balance", 0)
+    
+    if stock <= 0:
+        return await cq.answer("❌ Stock not available", show_alert=True)
+    if balance < price:
         return await cq.answer("⚠️ Insufficient balance", show_alert=True)
-
-    # Fetch available number with string session
+    
     number_doc = numbers_col.find_one({"country": country_name, "used": False})
     if not number_doc:
         return await cq.answer("❌ No available numbers", show_alert=True)
-
-    # Deduct balance and mark number as sold
-    users_col.update_one({"_id": user["_id"]}, {"$inc": {"balance": -country["price"]}})
+    
+    # Deduct balance and mark number used
+    users_col.update_one({"_id": user["_id"]}, {"$inc": {"balance": -price}})
     numbers_col.update_one({"_id": number_doc["_id"]}, {"$set": {"used": True}})
     countries_col.update_one({"name": country_name}, {"$inc": {"stock": -1}})
     orders_col.insert_one({
         "user_id": user["_id"],
         "country": country_name,
         "number": number_doc["number"],
-        "price": country["price"],
+        "price": price,
         "status": "purchased",
         "created_at": datetime.datetime.utcnow()
     })
 
-    # Edit message to show purchased number and OTP button
     kb = InlineKeyboardBuilder()
     kb.row(
         InlineKeyboardButton(text="🔑 Get OTP", callback_data=f"grab_otp:{number_doc['_id']}")
     )
+    
     await cq.message.edit_text(
         f"✅ Purchase Successful!\n"
         f"🌍 {country_name}\n"
         f"📱 {number_doc['number']}\n"
-        f"💸 {country['price']}\n"
-        f"💰 Balance Left: {user['balance'] - country['price']:.2f}\n\n"
+        f"💸 {price}\n"
+        f"💰 Balance Left: {balance - price:.2f}\n\n"
         f"👉 Click below to get OTP.",
         reply_markup=kb.as_markup()
     )
@@ -201,17 +203,15 @@ async def callback_grab_otp(cq: CallbackQuery):
     client = TelegramClient(StringSession(string_session), api_id, api_hash)
 
     await client.connect()
-    otp_code = None
     try:
+        otp_code = None
         async for msg in client.iter_messages("777000", limit=10):
             if msg.message and msg.message.isdigit():
                 otp_code = msg.message
                 break
-
         if not otp_code:
             return await cq.answer("⚠️ No OTP yet. Try again later.", show_alert=True)
 
-        # Send OTP and mark purchase complete
         await cq.message.edit_text(
             f"✅ OTP Received!\n"
             f"📱 {number_doc['number']}\n"
@@ -219,7 +219,7 @@ async def callback_grab_otp(cq: CallbackQuery):
             parse_mode="HTML"
         )
 
-        # Notify channel
+        # Notify channel about completed purchase
         await bot.send_message(
             "@thedrxnet",
             f"📦 Purchase Complete!\n"
@@ -234,7 +234,7 @@ async def callback_grab_otp(cq: CallbackQuery):
     finally:
         await client.disconnect()
 
-# ===== ADMIN ADD NUMBER (Telethon string session generation) =====
+# ===== ADMIN ADD NUMBER (Telethon string session) =====
 @dp.message(Command("add"))
 async def cmd_add_start(msg: Message, state: FSMContext):
     if not is_admin(msg.from_user.id):
@@ -252,7 +252,7 @@ async def cmd_add_start(msg: Message, state: FSMContext):
 @dp.callback_query(F.data.startswith("add_country:"))
 async def callback_add_country(cq: CallbackQuery, state: FSMContext):
     await cq.answer()
-    _, country_name = cq.data.split(":",1)
+    _, country_name = cq.data.split(":", 1)
     await state.update_data(country=country_name)
     await cq.message.answer(f"📞 Enter phone number for {country_name}:")
     await state.set_state(AddNumberStates.waiting_number)
@@ -294,7 +294,7 @@ async def add_number_verify_code(msg: Message, state: FSMContext):
         string_session = client.session.save()
         await client.disconnect()
         numbers_col.insert_one({"country": country, "number": phone, "string_session": string_session, "used": False})
-        countries_col.update_one({"name": country}, {"$inc":{"stock":1}}, upsert=True)
+        countries_col.update_one({"name": country}, {"$inc": {"stock":1}}, upsert=True)
         await msg.answer(f"✅ Added number {phone} for {country}")
         await state.clear()
     except Exception as e:
@@ -303,8 +303,8 @@ async def add_number_verify_code(msg: Message, state: FSMContext):
             await state.update_data(session=session_str)
             await state.set_state(AddNumberStates.waiting_password)
         else:
-            await msg.answer(f"❌ Error: {e}")
             await client.disconnect()
+            await msg.answer(f"❌ Error: {e}")
 
 @dp.message(AddNumberStates.waiting_password)
 async def add_number_with_password(msg: Message, state: FSMContext):
@@ -328,7 +328,7 @@ async def add_number_with_password(msg: Message, state: FSMContext):
         await client.disconnect()
         await msg.answer(f"❌ Error signing in with password: {e}")
 
-# ===== ADMIN COUNTRY COMMANDS =====
+# ===== ADMIN ADD COUNTRY =====
 @dp.message(Command("addcountry"))
 async def cmd_add_country(msg: Message):
     if not is_admin(msg.from_user.id):
@@ -344,27 +344,6 @@ async def handle_add_country(msg: Message):
     except: return await msg.answer("❌ Invalid price")
     countries_col.update_one({"name": name.strip()}, {"$set":{"price":price,"stock":0}}, upsert=True)
     await msg.answer(f"✅ Country {name.strip()} added/updated: ₹{price}")
-
-@dp.message(Command("removecountry"))
-async def cmd_remove_country(msg: Message):
-    if not is_admin(msg.from_user.id): return await msg.answer("❌ Not authorized")
-    await msg.answer("Send country name to remove:")
-
-@dp.message()
-async def handle_remove_country(msg: Message):
-    if not is_admin(msg.from_user.id): return
-    countries_col.delete_one({"name": msg.text.strip()})
-    await msg.answer(f"✅ Country {msg.text.strip()} removed.")
-
-# ===== ADMIN DB VIEW =====
-@dp.message(Command("db"))
-async def cmd_db(msg: Message):
-    if not is_admin(msg.from_user.id): return await msg.answer("❌ Not authorized")
-    numbers = numbers_col.find({})
-    text = "<b>All numbers in DB:</b>\n\n"
-    for n in numbers:
-        text += f"📱 {n['number']} | {n['country']} | Used: {n['used']}\n"
-    await msg.answer(text)
 
 # ===== ADMIN CREDIT/DEBIT =====
 @dp.message(Command("credit"), StateFilter(None))
