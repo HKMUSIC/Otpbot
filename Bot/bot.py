@@ -1,6 +1,7 @@
 import os
 import asyncio
 import html
+from aiogram.fsm.context import FSMContext
 from datetime import datetime, timezone
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
@@ -506,13 +507,12 @@ async def callback_howto(cq: CallbackQuery):
 
 # ================= Admin Credit/Debit Commands =================
 @dp.message(Command("credit"))
-async def cmd_credit(msg: Message):
+async def cmd_credit(msg: Message, state: FSMContext):
     if not is_admin(msg.from_user.id):
         return await msg.answer("❌ Not authorized.")
     
     await msg.answer("💰 Send user ID and amount to credit separated by a comma (e.g., 123456789,50):")
-    await dp.current_state(user=msg.from_user.id).set_state("credit_waiting")
-
+    await state.set_state("credit_waiting")
 
 @dp.message(StateFilter("credit_waiting"))
 async def handle_credit(msg: Message, state: FSMContext):
@@ -540,13 +540,12 @@ async def handle_credit(msg: Message, state: FSMContext):
 
 
 @dp.message(Command("debit"))
-async def cmd_debit(msg: Message):
+async def cmd_debit(msg: Message, state: FSMContext):
     if not is_admin(msg.from_user.id):
         return await msg.answer("❌ Not authorized.")
-
+    
     await msg.answer("💸 Send user ID and amount to debit separated by a comma (e.g., 123456789,50):")
-    await dp.current_state(user=msg.from_user.id).set_state("debit_waiting")
-
+    await state.set_state("debit_waiting")
 
 @dp.message(StateFilter("debit_waiting"))
 async def handle_debit(msg: Message, state: FSMContext):
