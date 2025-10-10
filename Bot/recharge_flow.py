@@ -64,7 +64,7 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
 
         kb = InlineKeyboardBuilder()
         kb.button(text="Deposit Now", callback_data="deposit_now")
-        kb.button(text="Go Back", callback_data="go_back")
+        kb.button(text="⬅️ Go Back", callback_data="go_back")
         kb.adjust(2)
 
         text = (
@@ -118,16 +118,15 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
 
         qr_image = FSInputFile("IMG_20251008_085640_972.jpg")
 
-        kb = InlineKeyboardBuilder()
-        kb.button(text="Deposit", callback_data="send_deposit")
-        kb.button(text="Go Back", callback_data="go_back")
-        kb.adjust(2)
-
         caption = (
             "🔝 Send INR to this QR Code.\n\n"
             "💳 Or Pay To:\n<pre>itsakt5@ptyes</pre>\n\n"
-            "✅ After completing payment, click 'Deposit'."
+            "✅ After completing payment, click 'Deposit' to continue."
         )
+
+        kb = InlineKeyboardBuilder()
+        kb.button(text="📸 Deposit", callback_data="send_deposit")
+        kb.adjust(1)
 
         msg = await cq.message.answer_photo(
             photo=qr_image,
@@ -139,7 +138,7 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         await cq.answer()
 
     # ----- Start deposit -----
-    @dp.callback_query(F.data == "send_deposit", StateFilter(RechargeState.choose_method))
+    @dp.callback_query(F.data == "send_deposit")
     async def send_deposit(cq: CallbackQuery, state: FSMContext):
         try:
             await cq.message.delete()
@@ -161,27 +160,13 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
     @dp.message(StateFilter(RechargeState.waiting_deposit_amount), F.text)
     async def amount_received(message: Message, state: FSMContext):
         amount_text = message.text.strip()
-
-        # Validate integer
         if not amount_text.isdigit():
             await message.answer("❌ Please enter a valid number (digits only, e.g., 100).")
             return
 
         amount = int(amount_text)
         await state.update_data(amount=amount)
-
-        # Update balance in DB
-        user_id = message.from_user.id
-        user = users_col.find_one({"_id": user_id})
-        if not user:
-            users_col.insert_one({"_id": user_id, "balance": amount})
-        else:
-            users_col.update_one({"_id": user_id}, {"$inc": {"balance": amount}})
-
-        await message.answer(
-            f"✅ ₹{amount} has been added to your balance (temporary until admin verifies).\n"
-            f"Now please send your Payment ID / UTR:"
-        )
+        await message.answer("🆔 Now please send your Payment ID / UTR:")
         await state.set_state(RechargeState.waiting_payment_id)
 
     # ----- Payment ID / UTR -----
@@ -191,10 +176,12 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         screenshot = data.get("screenshot")
         amount = data.get("amount")
         payment_id = message.text.strip()
+
         user_id = message.from_user.id
         username = message.from_user.username or "None"
         full_name = message.from_user.full_name
 
+        # Save in DB
         txn_doc = {
             "user_id": user_id,
             "username": username,
@@ -207,12 +194,23 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         }
         txn_id = txns_col.insert_one(txn_doc).inserted_id
 
+        # Update user balance (temp)
+        user = users_col.find_one({"_id": user_id})
+        if not user:
+            users_col.insert_one({"_id": user_id, "balance": amount})
+        else:
+            users_col.update_one({"_id": user_id}, {"$inc": {"balance": amount}})
+
         await message.answer(
-            "✅ Your payment request has been sent to the admin.\n"
-            "Please wait for approval or contact @hehe_stalker."
+            "✅ Recharge request received!\n\n"
+            f"💰 Amount: ₹{amount}\n"
+            f"🆔 Payment ID / UTR: {payment_id}\n\n"
+            "📸 Screenshot saved successfully.\n"
+            "⏳ Please wait while admin verifies your payment."
         )
         await state.clear()
 
+        # Send to admins
         kb = InlineKeyboardBuilder()
         kb.button(text="✅ Approve", callback_data=f"approve_txn:{txn_id}")
         kb.button(text="❌ Decline", callback_data=f"decline_txn:{txn_id}")
