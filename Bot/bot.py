@@ -296,8 +296,44 @@ async def add_number_verify_code(msg: Message, state: FSMContext):
 
     except Exception as e:
         if "password" in str(e).lower():
-            await msg.answer("🔐 Two-step verification is enabled. Please send the password
+            await msg.answer("🔐 Two-step verification is enabled. Please send the password for this account:")
+            await state.update_data(need_password=True, session=session_str)
+            await state.set_state(AddSession.waiting_password)
+        else:
+            await msg.answer(f"❌ Error verifying code: {e}")
+            await client.disconnect()
 
+# If 2FA password is required
+@dp.message(AddSession.waiting_password)
+async def add_number_with_password(msg: Message, state: FSMContext):
+    data = await state.get_data()
+    country = data["country"]
+    phone = data["number"]
+    session_str = data["session"]
+
+    api_id = int(os.getenv("API_ID"))
+    api_hash = os.getenv("API_HASH")
+
+    client = TelegramClient(StringSession(session_str), api_id, api_hash)
+    await client.connect()
+    try:
+        await client.sign_in(password=msg.text.strip())
+        string_session = client.session.save()
+        await client.disconnect()
+
+        numbers_col.insert_one({
+            "country": country,
+            "number": phone,
+            "string_session": string_session,
+            "used": False
+        })
+        countries_col.update_one({"name": country}, {"$inc": {"stock": 1}}, upsert=True)
+        await msg.answer(f"✅ Added number {phone} (with 2FA) for {country}.")
+        await state.clear()
+    except Exception as e:
+        await client.disconnect()
+        await msg.answer(f"❌ Error signing in with password: {e}")
+        
 # ===== Register external handlers =====
 register_readymade_accounts_handlers(dp=dp, bot=bot, users_col=users_col)
 register_recharge_handlers(dp=dp, bot=bot, users_col=users_col, txns_col=db["transactions"], ADMIN_IDS=ADMIN_IDS)
