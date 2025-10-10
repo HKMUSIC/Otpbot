@@ -154,13 +154,13 @@ async def send_country_menu(message, previous=""):
     kb = InlineKeyboardBuilder()
 for c in countries:
     kb.button(text=html.escape(c["name"]), callback_data=f"country:{c['name']}")
-kb.adjust(2)
+    kb.adjust(2)
 
-if previous:
+    if previous:
     kb.row(InlineKeyboardButton(text="🔙 Back", callback_data=previous))
 
 # Edit the same message instead of sending a new one
-await message.edit_text("🌍 Select a country:", reply_markup=kb.as_markup())
+    await message.edit_text("🌍 Select a country:", reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data == "buy")
 async def callback_buy(cq: CallbackQuery):
