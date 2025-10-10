@@ -13,15 +13,10 @@ from mustjoin import check_join
 class RechargeState(StatesGroup):
     choose_method = State()
     waiting_deposit_screenshot = State()
-    waiting_deposit_amount = State()
-    waiting_payment_id = State()
+    admin_waiting_amount = State()  # new state for admin input
 
 
 def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
-    """
-    Registers recharge related handlers.
-    """
-
     # ========= Helper =========
     async def start_recharge_flow(message: Message, state: FSMContext):
         kb = InlineKeyboardBuilder()
@@ -112,7 +107,6 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
 
     @dp.callback_query(F.data == "deposit_now", StateFilter(RechargeState.choose_method))
     async def deposit_now(cq: CallbackQuery, state: FSMContext):
-        # Replace the main message with UPI selection
         data = await state.get_data()
         msg_id = data.get("recharge_msg_id")
 
@@ -136,7 +130,6 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
 
     @dp.callback_query(F.data == "upi_qr", StateFilter(RechargeState.choose_method))
     async def upi_qr(cq: CallbackQuery, state: FSMContext):
-        # Delete the "Select UPI method..." message before showing QR
         data = await state.get_data()
         msg_id = data.get("recharge_msg_id")
         try:
@@ -157,8 +150,10 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
             "✅ After Payment, Click Deposit Button."
         )
 
-        msg = await cq.message.answer_photo(photo=qr_image, caption=text, parse_mode="HTML", reply_markup=kb.as_markup())
-        await state.update_data(recharge_msg_id=msg.message_id)  # update with new QR message id
+        msg = await cq.message.answer_photo(
+            photo=qr_image, caption=text, parse_mode="HTML", reply_markup=kb.as_markup()
+        )
+        await state.update_data(recharge_msg_id=msg.message_id)
         await cq.answer()
 
     @dp.callback_query(F.data == "send_deposit", StateFilter(RechargeState.choose_method))
@@ -172,52 +167,34 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         await state.set_state(RechargeState.waiting_deposit_screenshot)
         await cq.answer()
 
+    # --- Screenshot received: directly send to admin ---
     @dp.message(StateFilter(RechargeState.waiting_deposit_screenshot), F.photo)
     async def screenshot_received(message: Message, state: FSMContext):
-        await state.update_data(screenshot=message.photo[-1].file_id)
-        await message.answer("💰 Enter the amount you sent:")
-        await state.set_state(RechargeState.waiting_deposit_amount)
-
-    @dp.message(StateFilter(RechargeState.waiting_deposit_amount), F.text)
-    async def amount_received(message: Message, state: FSMContext):
-        amount = message.text.strip()
-        if not amount.replace(".", "").isdigit():
-            await message.answer("❌ Invalid amount. Enter numbers only.")
-            return
-        await state.update_data(amount=float(amount))
-        await message.answer("🔑 Please send your Payment ID or UTR:")
-        await state.set_state(RechargeState.waiting_payment_id)
-
-    @dp.message(StateFilter(RechargeState.waiting_payment_id), F.text)
-    async def payment_id_received(message: Message, state: FSMContext):
-        data = await state.get_data()
-        screenshot = data.get("screenshot")
-        amount = data.get("amount")
-        payment_id = message.text.strip()
+        screenshot = message.photo[-1].file_id
         user_id = message.from_user.id
-        username = message.from_user.username
+        username = message.from_user.username or "N/A"
         full_name = message.from_user.full_name
 
         txn_doc = {
             "user_id": user_id,
             "username": username,
             "full_name": full_name,
-            "amount": amount,
-            "payment_id": payment_id,
             "screenshot": screenshot,
             "status": "pending",
-            "created_at": datetime.datetime.utcnow()
+            "created_at": datetime.datetime.utcnow(),
         }
         txn_id = txns_col.insert_one(txn_doc).inserted_id
 
         await message.answer(
-            "✅ Your payment request has been sent to the admin. Please wait for approval or DM @hehe_stalker for faster approvals."
+            "✅ Your payment screenshot has been sent to the admin for verification.\n"
+            "Please wait for approval."
         )
         await state.clear()
 
+        # Send to admin
         kb = InlineKeyboardBuilder()
-        kb.button(text="✅ Approve", callback_data=f"approve_txn:{str(txn_id)}")
-        kb.button(text="❌ Decline", callback_data=f"decline_txn:{str(txn_id)}")
+        kb.button(text="✅ Approve", callback_data=f"approve_txn:{txn_id}")
+        kb.button(text="❌ Decline", callback_data=f"decline_txn:{txn_id}")
         kb.adjust(2)
 
         for admin_id in ADMIN_IDS:
@@ -226,15 +203,75 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
                     chat_id=admin_id,
                     photo=screenshot,
                     caption=(
-                        f"<b>Payment Approval Request</b>\n\n"
-                        f"Name: {full_name}\n"
-                        f"Username: @{username}\n"
-                        f"ID: {user_id}\n"
-                        f"Amount: {amount}\n"
-                        f"UTR/Payment ID: {payment_id}"
+                        f"<b>New Payment Request</b>\n\n"
+                        f"👤 Name: {full_name}\n"
+                        f"🆔 ID: {user_id}\n"
+                        f"🔗 Username: @{username}\n\n"
+                        "Please review and approve/decline below."
                     ),
                     parse_mode="HTML",
                     reply_markup=kb.as_markup()
                 )
             except Exception:
                 pass
+
+    # --- Admin approves ---
+    @dp.callback_query(F.data.startswith("approve_txn:"))
+    async def approve_txn(cq: CallbackQuery, state: FSMContext):
+        txn_id = cq.data.split(":")[1]
+        txns_col.update_one({"_id": ObjectId(txn_id)}, {"$set": {"status": "approved_waiting_amount"}})
+
+        await cq.message.answer("💰 Please reply with the amount to add for this user.")
+        await state.update_data(txn_id=txn_id)
+        await state.set_state(RechargeState.admin_waiting_amount)
+        await cq.answer()
+
+    # --- Admin sends amount ---
+    @dp.message(StateFilter(RechargeState.admin_waiting_amount), F.text)
+    async def admin_add_amount(message: Message, state: FSMContext):
+        if not message.text.replace(".", "").isdigit():
+            await message.answer("❌ Please enter a valid numeric amount.")
+            return
+
+        amount = float(message.text.strip())
+        data = await state.get_data()
+        txn_id = data.get("txn_id")
+        txn = txns_col.find_one({"_id": ObjectId(txn_id)})
+
+        if not txn:
+            await message.answer("⚠️ Transaction not found.")
+            await state.clear()
+            return
+
+        user_id = txn["user_id"]
+        users_col.update_one({"_id": user_id}, {"$inc": {"balance": amount}}, upsert=True)
+        txns_col.update_one({"_id": ObjectId(txn_id)}, {"$set": {"status": "approved", "amount": amount}})
+
+        await message.answer(f"✅ Added ₹{amount} to user {txn['full_name']} (@{txn['username']}).")
+        await state.clear()
+
+        # Notify user
+        try:
+            await bot.send_message(
+                user_id,
+                f"🎉 Your payment of ₹{amount} has been approved and added to your balance!"
+            )
+        except Exception:
+            pass
+
+    # --- Admin declines ---
+    @dp.callback_query(F.data.startswith("decline_txn:"))
+    async def decline_txn(cq: CallbackQuery):
+        txn_id = cq.data.split(":")[1]
+        txns_col.update_one({"_id": ObjectId(txn_id)}, {"$set": {"status": "declined"}})
+        txn = txns_col.find_one({"_id": ObjectId(txn_id)})
+
+        await cq.message.answer("❌ Payment has been declined.")
+        try:
+            await bot.send_message(
+                txn["user_id"],
+                "❌ Your payment was declined by the admin. Please contact support for details."
+            )
+        except Exception:
+            pass
+        await cq.answer()
