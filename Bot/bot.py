@@ -393,40 +393,58 @@ async def cmd_db(msg: Message):
         text += f"📱 {n['number']} | Country: {n['country']} | Used: {n['used']}\n"
     await msg.answer(text)
 
-# ===== Admin credit/debit commands =====
-@dp.message(Command("credit"))
-async def cmd_credit(msg: Message):
+# ===== FSM for Admin Credit/Debit =====
+class AdminAdjustBalanceState(StatesGroup):
+    waiting_input = State()
+
+# ===== Admin Credit =====
+@dp.message(Command("credit"), StateFilter(None))
+async def cmd_credit(msg: Message, state: FSMContext):
     if not is_admin(msg.from_user.id):
         return await msg.answer("❌ Not authorized.")
-    await msg.answer("Send user_id and amount separated by comma (e.g., 123456789,50) to CREDIT:")
+    await msg.answer("💰 Send user_id and amount to credit (format: 123456789,50):")
+    await state.set_state(AdminAdjustBalanceState.waiting_input)
+    await state.update_data(action="credit")
 
-@dp.message(Command("debit"))
-async def cmd_debit(msg: Message):
+# ===== Admin Debit =====
+@dp.message(Command("debit"), StateFilter(None))
+async def cmd_debit(msg: Message, state: FSMContext):
     if not is_admin(msg.from_user.id):
         return await msg.answer("❌ Not authorized.")
-    await msg.answer("Send user_id and amount separated by comma (e.g., 123456789,50) to DEBIT:")
+    await msg.answer("💸 Send user_id and amount to debit (format: 123456789,50):")
+    await state.set_state(AdminAdjustBalanceState.waiting_input)
+    await state.update_data(action="debit")
 
-@dp.message(StateFilter(None))
-async def handle_credit_debit(msg: Message):
-    if not is_admin(msg.from_user.id):
-        return
+# ===== Handle Credit/Debit Input =====
+@dp.message(AdminAdjustBalanceState.waiting_input)
+async def handle_adjust_balance(msg: Message, state: FSMContext):
+    data = await state.get_data()
+    action = data.get("action")
+
     if "," not in msg.text:
-        return
-    user_id, amount = msg.text.split(",", 1)
+        return await msg.answer("❌ Invalid format. Use: user_id,amount")
+    
+    user_id_str, amount_str = msg.text.split(",", 1)
     try:
-        user_id = int(user_id.strip())
-        amount = float(amount.strip())
-    except:
-        return await msg.answer("❌ Invalid format.")
-    if "credit" in msg.text.lower():
-        users_col.update_one({"_id": user_id}, {"$inc": {"balance": amount}}, upsert=True)
-        await msg.answer(f"✅ Credited {amount} ₹ to user {user_id}")
-    elif "debit" in msg.text.lower():
-        users_col.update_one({"_id": user_id}, {"$inc": {"balance": -amount}}, upsert=True)
-        await msg.answer(f"✅ Debited {amount} ₹ from user {user_id}")
-    else:
-        # fallback
-        await msg.answer("❌ Unknown command. Use /credit or /debit with user_id,amount")
+        user_id = int(user_id_str.strip())
+        amount = float(amount_str.strip())
+    except ValueError:
+        return await msg.answer("❌ Invalid user_id or amount.")
+
+    user = users_col.find_one({"_id": user_id})
+    if not user:
+        return await msg.answer("❌ User not found.")
+
+    if action == "credit":
+        new_balance = user["balance"] + amount
+        users_col.update_one({"_id": user_id}, {"$set": {"balance": new_balance}})
+        await msg.answer(f"✅ Credited ₹{amount:.2f} to user {user_id}. New balance: ₹{new_balance:.2f}")
+    else:  # debit
+        new_balance = max(user["balance"] - amount, 0)
+        users_col.update_one({"_id": user_id}, {"$set": {"balance": new_balance}})
+        await msg.answer(f"✅ Debited ₹{amount:.2f} from user {user_id}. New balance: ₹{new_balance:.2f}")
+
+    await state.clear()
 
 # ===== Register external handlers =====
 register_readymade_accounts_handlers(dp=dp, bot=bot, users_col=users_col)
