@@ -447,6 +447,30 @@ async def handle_remove_country(msg: Message, state: FSMContext):
         await msg.answer(f"✅ Country {msg.text.strip()} removed.")
     await state.clear()
 
+@dp.message(Command("db"))
+async def cmd_db(msg: Message):
+    if not is_admin(msg.from_user.id):
+        return await msg.answer("❌ Not authorized.")
+
+    countries = list(countries_col.find({}))
+    if not countries:
+        return await msg.answer("❌ No countries found in DB.")
+
+    text = "📚 <b>Numbers in Database by Country:</b>\n\n"
+
+    for c in countries:
+        country_name = c["name"]
+        numbers = list(numbers_col.find({"country": country_name}))
+        text += f"🌍 <b>{country_name}:</b>\n"
+        if numbers:
+            for num in numbers:
+                text += f"• {num['number']} {'✅' if num.get('used') else ''}\n"
+        else:
+            text += "No number\n"
+        text += "\n"
+
+    await msg.answer(text, parse_mode="HTML")
+
 @dp.callback_query(F.data == "stats")
 async def callback_stats(cq: CallbackQuery):
     user = users_col.find_one({"_id": cq.from_user.id})
