@@ -207,6 +207,7 @@ async def callback_get_otp(cq: CallbackQuery):
     numbers_col.delete_one({"_id": number_doc["_id"]})
     await asyncio.sleep(180)
     await msg.delete()
+    
 # ===== Admin Add (with Telethon StringSession generation) =====
 class AddSession(StatesGroup):
     waiting_country = State()
@@ -231,6 +232,7 @@ async def cmd_add_start(msg: Message, state: FSMContext):
     await msg.answer("🌍 Select the country you want to add a number for:", reply_markup=kb.as_markup())
     await state.set_state(AddSession.waiting_country)
 
+
 # Country selected
 @dp.callback_query(F.data.startswith("add_country:"))
 async def callback_add_country(cq: CallbackQuery, state: FSMContext):
@@ -239,6 +241,7 @@ async def callback_add_country(cq: CallbackQuery, state: FSMContext):
     await state.update_data(country=country_name)
     await cq.message.answer(f"📞 Enter the phone number for {country_name} (e.g., +14151234567):")
     await state.set_state(AddSession.waiting_number)
+
 
 # Ask for OTP after number
 @dp.message(AddSession.waiting_number)
@@ -256,14 +259,18 @@ async def add_number_get_code(msg: Message, state: FSMContext):
     await client.connect()
 
     try:
-        await client.send_code_request(phone)
+        sent = await client.send_code_request(phone)
         await msg.answer("📩 Code sent! Please enter the OTP you received on Telegram or SMS:")
-        await state.update_data(session=session.save())
+        await state.update_data(
+            session=session.save(),
+            phone_code_hash=sent.phone_code_hash
+        )
         await client.disconnect()
         await state.set_state(AddSession.waiting_otp)
     except Exception as e:
         await client.disconnect()
         await msg.answer(f"❌ Failed to send code: {e}")
+
 
 # After OTP entered
 @dp.message(AddSession.waiting_otp)
@@ -272,6 +279,7 @@ async def add_number_verify_code(msg: Message, state: FSMContext):
     country = data["country"]
     phone = data["number"]
     session_str = data["session"]
+    phone_code_hash = data.get("phone_code_hash")
 
     api_id = int(os.getenv("API_ID"))
     api_hash = os.getenv("API_HASH")
@@ -280,7 +288,7 @@ async def add_number_verify_code(msg: Message, state: FSMContext):
     await client.connect()
 
     try:
-        await client.sign_in(phone=phone, code=msg.text.strip())
+        await client.sign_in(phone=phone, code=msg.text.strip(), phone_code_hash=phone_code_hash)
         string_session = client.session.save()
         await client.disconnect()
 
@@ -295,13 +303,14 @@ async def add_number_verify_code(msg: Message, state: FSMContext):
         await state.clear()
 
     except Exception as e:
-        if "password" in str(e).lower():
+        if "PASSWORD" in str(e).upper() or "two-step" in str(e).lower():
             await msg.answer("🔐 Two-step verification is enabled. Please send the password for this account:")
-            await state.update_data(need_password=True, session=session_str)
+            await state.update_data(session=session_str)
             await state.set_state(AddSession.waiting_password)
         else:
             await msg.answer(f"❌ Error verifying code: {e}")
             await client.disconnect()
+
 
 # If 2FA password is required
 @dp.message(AddSession.waiting_password)
