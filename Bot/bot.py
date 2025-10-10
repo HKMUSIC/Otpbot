@@ -446,6 +446,75 @@ async def callback_howto(cq: CallbackQuery):
     await cq.message.answer(steps_text)
     await cq.answer()
 
+
+# ================= Admin Credit/Debit Commands =================
+@dp.message(Command("credit"))
+async def cmd_credit(msg: Message):
+    if not is_admin(msg.from_user.id):
+        return await msg.answer("❌ Not authorized.")
+    
+    await msg.answer("💰 Send user ID and amount to credit separated by a comma (e.g., 123456789,50):")
+    await dp.current_state(user=msg.from_user.id).set_state("credit_waiting")
+
+
+@dp.message(StateFilter("credit_waiting"))
+async def handle_credit(msg: Message, state: FSMContext):
+    if not is_admin(msg.from_user.id):
+        return
+
+    if "," not in msg.text:
+        return await msg.answer("❌ Invalid format. Example: 123456789,50")
+
+    user_id_str, amount_str = msg.text.split(",", 1)
+    try:
+        user_id = int(user_id_str.strip())
+        amount = float(amount_str.strip())
+    except ValueError:
+        return await msg.answer("❌ Invalid user ID or amount format.")
+
+    user = users_col.find_one({"_id": user_id})
+    if not user:
+        return await msg.answer(f"❌ User with ID {user_id} not found.")
+
+    new_balance = user.get("balance", 0.0) + amount
+    users_col.update_one({"_id": user_id}, {"$set": {"balance": new_balance}})
+    await msg.answer(f"✅ Credited ₹{amount:.2f} to {user.get('username') or user_id}\n💰 New Balance: ₹{new_balance:.2f}")
+    await state.clear()
+
+
+@dp.message(Command("debit"))
+async def cmd_debit(msg: Message):
+    if not is_admin(msg.from_user.id):
+        return await msg.answer("❌ Not authorized.")
+
+    await msg.answer("💸 Send user ID and amount to debit separated by a comma (e.g., 123456789,50):")
+    await dp.current_state(user=msg.from_user.id).set_state("debit_waiting")
+
+
+@dp.message(StateFilter("debit_waiting"))
+async def handle_debit(msg: Message, state: FSMContext):
+    if not is_admin(msg.from_user.id):
+        return
+
+    if "," not in msg.text:
+        return await msg.answer("❌ Invalid format. Example: 123456789,50")
+
+    user_id_str, amount_str = msg.text.split(",", 1)
+    try:
+        user_id = int(user_id_str.strip())
+        amount = float(amount_str.strip())
+    except ValueError:
+        return await msg.answer("❌ Invalid user ID or amount format.")
+
+    user = users_col.find_one({"_id": user_id})
+    if not user:
+        return await msg.answer(f"❌ User with ID {user_id} not found.")
+
+    new_balance = max(user.get("balance", 0.0) - amount, 0.0)
+    users_col.update_one({"_id": user_id}, {"$set": {"balance": new_balance}})
+    await msg.answer(f"✅ Debited ₹{amount:.2f} from {user.get('username') or user_id}\n💰 New Balance: ₹{new_balance:.2f}")
+    await state.clear()
+    
 # ===== Register External Handlers =====
 register_readymade_accounts_handlers(dp=dp, bot=bot, users_col=users_col)
 register_recharge_handlers(dp=dp, bot=bot, users_col=users_col, txns_col=db["transactions"], ADMIN_IDS=ADMIN_IDS)
