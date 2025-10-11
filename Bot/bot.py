@@ -698,6 +698,76 @@ async def callback_redeem_number(cq: CallbackQuery, state: FSMContext):
         # Finalize redeem code creation
         try:
             limit = int(current)
+
+# ================= FSM =================
+class RedeemState(StatesGroup):
+    waiting_amount = State()
+    waiting_limit = State()
+
+
+class UserRedeemState(StatesGroup):
+    waiting_code = State()
+
+
+# ================= Helpers =================
+def generate_code(length=6):
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
+
+
+def is_admin(user_id: int):
+    return user_id in ADMIN_IDS
+
+
+# ================= Admin: Create Redeem =================
+@dp.message(Command("createredeem"))
+async def cmd_create_redeem(msg: Message, state: FSMContext):
+    if not is_admin(msg.from_user.id):
+        return await msg.answer("❌ Not authorized.")
+    
+    await msg.answer("💰 Enter the amount for this redeem code:")
+    await state.set_state(RedeemState.waiting_amount)
+
+
+@dp.message(RedeemState.waiting_amount)
+async def handle_redeem_amount(msg: Message, state: FSMContext):
+    try:
+        amount = float(msg.text.strip())
+        if amount <= 0:
+            raise ValueError
+    except ValueError:
+        return await msg.answer("❌ Invalid amount. Send a number like 50 or 100.")
+    
+    await state.update_data(amount=amount)
+
+    # Initialize limit string
+    kb = InlineKeyboardBuilder()
+    for row in (("1","2","3"), ("4","5","6"), ("7","8","9"), ("0","❌","✅")):
+        buttons = [InlineKeyboardButton(text=btn, callback_data=f"redeemnum:{btn}") for btn in row]
+        kb.row(*buttons)
+
+    await msg.answer(
+        "👥 Select max number of users who can claim this code:\n<b>0</b>",
+        parse_mode="HTML",
+        reply_markup=kb.as_markup()
+    )
+    await state.set_state(RedeemState.waiting_limit)
+    await state.update_data(limit_str="")
+
+
+@dp.callback_query(F.data.startswith("redeemnum:"))
+async def handle_redeem_number(cq: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    current = data.get("limit_str", "")
+    value = cq.data.split(":")[1]
+
+    if value == "❌":
+        current = current[:-1]  # delete last digit
+    elif value == "✅":
+        if not current:
+            await cq.answer("❌ Please select at least one user.", show_alert=True)
+            return
+        try:
+            limit = int(current)
         except ValueError:
             await cq.answer("❌ Invalid number.", show_alert=True)
             return
@@ -725,20 +795,17 @@ async def callback_redeem_number(cq: CallbackQuery, state: FSMContext):
         )
         await state.clear()
         return
-
     else:  # 0-9
         current += value
-        if len(current) > 6:  # max 6 digits to avoid insane numbers
+        if len(current) > 6:
             current = current[:6]
 
     await state.update_data(limit_str=current)
 
-    # Edit message to show current number
+    # Update inline keyboard display
     kb = InlineKeyboardBuilder()
     for row in (("1","2","3"), ("4","5","6"), ("7","8","9"), ("0","❌","✅")):
-        buttons = []
-        for btn in row:
-            buttons.append(InlineKeyboardButton(text=btn, callback_data=f"redeemnum:{btn}"))
+        buttons = [InlineKeyboardButton(text=btn, callback_data=f"redeemnum:{btn}") for btn in row]
         kb.row(*buttons)
 
     await cq.message.edit_text(
@@ -747,7 +814,8 @@ async def callback_redeem_number(cq: CallbackQuery, state: FSMContext):
         reply_markup=kb.as_markup()
     )
     await cq.answer()
-    
+
+
 # ================= Admin: View Redeems =================
 @dp.message(Command("redeemlist"))
 async def cmd_redeem_list(msg: Message):
@@ -767,15 +835,17 @@ async def cmd_redeem_list(msg: Message):
         )
     await msg.answer(text, parse_mode="HTML")
 
+
 # ================= User: Redeem Code =================
 @dp.callback_query(F.data == "redeem")
-async def callback_redeem(cq: CallbackQuery, state: FSMContext):
+async def callback_user_redeem(cq: CallbackQuery, state: FSMContext):
     await cq.answer("✅ Send your redeem code now!", show_alert=False)
     await cq.message.answer("🎟️ Send your redeem code below:")
-    await state.set_state(RedeemState.waiting_code)
+    await state.set_state(UserRedeemState.waiting_code)
 
-@dp.message(StateFilter(RedeemState.waiting_code))
-async def handle_redeem_code(msg: Message, state: FSMContext):
+
+@dp.message(StateFilter(UserRedeemState.waiting_code))
+async def handle_user_redeem(msg: Message, state: FSMContext):
     code = msg.text.strip().upper()
     redeem = redeem_col.find_one({"code": code})
 
@@ -797,18 +867,12 @@ async def handle_redeem_code(msg: Message, state: FSMContext):
         return await state.clear()
 
     # Credit user
-    users_col.update_one(
-        {"_id": msg.from_user.id},
-        {"$inc": {"balance": redeem["amount"]}}
-    )
+    users_col.update_one({"_id": msg.from_user.id}, {"$inc": {"balance": redeem["amount"]}})
 
     # Update redeem record
     redeem_col.update_one(
         {"code": code},
-        {
-            "$inc": {"claimed_count": 1},
-            "$push": {"claimed_users": msg.from_user.id}
-        }
+        {"$inc": {"claimed_count": 1}, "$push": {"claimed_users": msg.from_user.id}}
     )
 
     await msg.answer(
@@ -816,13 +880,7 @@ async def handle_redeem_code(msg: Message, state: FSMContext):
         parse_mode="HTML"
     )
     await state.clear()
-# ================= Inline Redeem Button =================
-@dp.callback_query(F.data == "redeem")
-async def callback_inline_redeem(cq: CallbackQuery, state: FSMContext):
-    await cq.answer()  # just acknowledge the button click
-    await cq.message.answer("🎟️ Send your redeem code:")
-    await state.set_state(RedeemState.waiting_code)
-
+    
 
 # ===== Register External Handlers =====
 register_readymade_accounts_handlers(dp=dp, bot=bot, users_col=users_col)
