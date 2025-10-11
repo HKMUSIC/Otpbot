@@ -127,7 +127,7 @@ async def cmd_start(m: Message):
         InlineKeyboardButton(text="🆘 How to Use?", callback_data="howto")
     )
     kb.row(
-        InlinekeyboardButton(text="🎉 Redeem", callback_data="redeem")
+        InlineKeyboardButton(text="🎉 Redeem", callback_data="redeem")
     )
 
     # Step 1: Send 🥂 emoji first
