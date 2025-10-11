@@ -134,7 +134,7 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         except:
             pass
 
-        qr_image = FSInputFile("IMG_20251008_085640_972.jpg")
+        qr_image = FSInputFile("IMG_20251011_222812_469.jpg")
 
         kb = InlineKeyboardBuilder()
         kb.button(text="Deposit", callback_data="send_deposit")
@@ -143,7 +143,7 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
 
         text = (
             "🔝 Send INR on this QR Code.\n"
-            "💳 Or Pay To:\n\n<code>itsakt5@ptyes</code>\n"
+            "💳 Or Pay To:\n\n<code>prabhat896@ptaxis</code>\n"
             "✅ After Payment, Click Deposit Button."
         )
 
