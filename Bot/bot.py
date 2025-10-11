@@ -643,13 +643,20 @@ def generate_code(length=6):
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
 
-# ================= Admin: Create Redeem =================
+# ================= FSM =================
+class RedeemState(StatesGroup):
+    waiting_amount = State()      # Admin enters amount for code
+    waiting_limit = State()       # Admin sets max users via inline
+
+# ================= Admin: Create Redeem with Inline Number Pad =================
 @dp.message(Command("createredeem"))
 async def cmd_create_redeem(msg: Message, state: FSMContext):
     if not is_admin(msg.from_user.id):
         return await msg.answer("❌ Not authorized.")
+
     await msg.answer("💰 Enter the amount for this redeem code:")
     await state.set_state(RedeemState.waiting_amount)
+
 
 @dp.message(StateFilter(RedeemState.waiting_amount))
 async def handle_redeem_amount(msg: Message, state: FSMContext):
@@ -661,41 +668,86 @@ async def handle_redeem_amount(msg: Message, state: FSMContext):
         return await msg.answer("❌ Invalid amount. Send a number like 50 or 100.")
 
     await state.update_data(amount=amount)
-    await msg.answer("👥 Enter max number of users who can claim this code:")
+
+    # Show inline numeric keypad
+    kb = InlineKeyboardBuilder()
+    for row in (("1","2","3"), ("4","5","6"), ("7","8","9"), ("0","❌","✅")):
+        buttons = []
+        for btn in row:
+            buttons.append(InlineKeyboardButton(text=btn, callback_data=f"redeemnum:{btn}"))
+        kb.row(*buttons)
+
+    await msg.answer("👥 Select max number of users who can claim this code:", reply_markup=kb.as_markup())
     await state.set_state(RedeemState.waiting_limit)
+    await state.update_data(limit_str="")  # store current numeric string
 
-@dp.message(StateFilter(RedeemState.waiting_limit))
-async def handle_redeem_limit(msg: Message, state: FSMContext):
-    try:
-        limit = int(msg.text.strip())
-        if limit <= 0:
-            raise ValueError
-    except ValueError:
-        return await msg.answer("❌ Invalid number. Send a positive integer.")
 
+# ================= Handle Inline Number Pad =================
+@dp.callback_query(F.data.startswith("redeemnum:"))
+async def callback_redeem_number(cq: CallbackQuery, state: FSMContext):
     data = await state.get_data()
-    amount = data["amount"]
-    code = generate_code()
-    created_at = datetime.utcnow()
+    current = data.get("limit_str", "")
+    value = cq.data.split(":", 1)[1]
 
-    redeem_col.insert_one({
-        "code": code,
-        "amount": amount,
-        "max_claims": limit,
-        "claimed_count": 0,
-        "claimed_users": [],
-        "created_at": created_at
-    })
+    if value == "❌":
+        current = current[:-1]  # delete last digit
+    elif value == "✅":
+        if not current:
+            await cq.answer("❌ You must select at least 1 user.", show_alert=True)
+            return
+        # Finalize redeem code creation
+        try:
+            limit = int(current)
+        except ValueError:
+            await cq.answer("❌ Invalid number.", show_alert=True)
+            return
 
-    await msg.answer(
-        f"✅ Redeem code created!\n\n"
-        f"🎟️ Code: <code>{code}</code>\n"
-        f"💰 Amount: ₹{amount:.2f}\n"
-        f"👥 Max Claims: {limit}",
-        parse_mode="HTML"
+        # Fetch amount
+        amount = data.get("amount")
+        code = generate_code()
+        created_at = datetime.utcnow()
+
+        redeem_col.insert_one({
+            "code": code,
+            "amount": amount,
+            "max_claims": limit,
+            "claimed_count": 0,
+            "claimed_users": [],
+            "created_at": created_at
+        })
+
+        await cq.message.edit_text(
+            f"✅ Redeem code created!\n\n"
+            f"🎟️ Code: <code>{code}</code>\n"
+            f"💰 Amount: ₹{amount:.2f}\n"
+            f"👥 Max Claims: {limit}",
+            parse_mode="HTML"
+        )
+        await state.clear()
+        return
+
+    else:  # 0-9
+        current += value
+        if len(current) > 6:  # max 6 digits to avoid insane numbers
+            current = current[:6]
+
+    await state.update_data(limit_str=current)
+
+    # Edit message to show current number
+    kb = InlineKeyboardBuilder()
+    for row in (("1","2","3"), ("4","5","6"), ("7","8","9"), ("0","❌","✅")):
+        buttons = []
+        for btn in row:
+            buttons.append(InlineKeyboardButton(text=btn, callback_data=f"redeemnum:{btn}"))
+        kb.row(*buttons)
+
+    await cq.message.edit_text(
+        f"👥 Select max number of users who can claim this code:\n<b>{current or '0'}</b>",
+        parse_mode="HTML",
+        reply_markup=kb.as_markup()
     )
-    await state.clear()
-
+    await cq.answer()
+    
 # ================= Admin: View Redeems =================
 @dp.message(Command("redeemlist"))
 async def cmd_redeem_list(msg: Message):
