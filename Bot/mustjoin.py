@@ -3,14 +3,14 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from config import MUST_JOIN_CHANNEL
 
 # Private channel details
-PRIVATE_CHANNEL_ID = -1002196760884
-PRIVATE_CHANNEL_LINK = "https://t.me/+_GAnh0wNPU1kYzE9"
+PRIVATE_CHANNEL_ID = -1003096815321
+PRIVATE_CHANNEL_LINK = "https://t.me/TG_ACC_ST0RE"
 
 # Welcome text with HTML formatting
 WELCOME_TEXT = (
-    '𝖶𝖾𝗅𝖼𝗈𝗆𝖾 𝗍𝗈 ᴠᴛʜ ᴀᴄᴄᴏᴜɴᴛ ʙᴏᴛ'
-    '<a href="https://files.catbox.moe/xjk0m5.jpg">🤖</a>\n'
-    '<blockquote expandable>𝖳𝗈 𝗎𝗌𝖾 𝗈𝗎𝗋 𝖮𝖳𝖯 𝖡𝗈𝗍, 𝗒𝗈𝗎 𝗆𝗎𝗌𝗍 𝗃𝗈𝗂𝗇 𝗈𝗎𝗋 𝖢𝗁𝖺𝗇𝗇𝖾𝗅𝗌 𝖺𝗇𝖽 𝖦𝗋𝗈𝗎𝗉𝗌 '
+    '𝖶𝖾𝗅𝖼𝗈𝗆𝖾 𝗍𝗈 ᴛɢ ᴀᴄᴄᴏᴜɴᴛ ʀᴏʙᴏᴛ'
+    '<a href="https://files.catbox.moe/a3o6j9.jpg">🤖</a>\n'
+    '<blockquote expandable>𝖳𝗈 𝗎𝗌𝖾 𝗈𝗎𝗋 𝖮𝖳𝖯 𝖡𝗈𝗍, 𝗒𝗈𝗎 𝗆𝗎𝗌𝗍 𝗃𝗈𝗂𝗇 𝗈𝗎𝗋 𝖢𝗁𝖺𝗇𝗇𝖾𝗅𝗌 '
     '𝖿𝗈𝗋 𝗎𝗉𝖽𝖺𝗍𝖾𝗌 𝖺𝗇𝖽 𝗌𝗎𝗉𝗉𝗈𝗋𝗍 ❤️</blockquote>\n'
     '<blockquote>𝖠𝖿𝗍𝖾𝗋 𝖩𝗈𝗂𝗇𝗂𝗇𝗀, /start 𝗍𝗁𝖾 𝖻𝗈𝗍 🤖</blockquote>'
 )
@@ -48,7 +48,7 @@ async def send_join_message(message: types.Message):
     # First row: both channels
     kb.row(
         types.InlineKeyboardButton(text="📢 𝖴𝗉𝖽𝖺𝗍𝖾𝗌", url=f"https://t.me/{MUST_JOIN_CHANNEL.replace('@', '')}"),
-        types.InlineKeyboardButton(text="💌 𝖲𝗎𝗉𝗉𝗈𝗋𝗍 𝖦𝖢", url=PRIVATE_CHANNEL_LINK)
+        types.InlineKeyboardButton(text="💌 𝖲𝗎𝗉𝗉𝗈𝗋𝗍 ", url=PRIVATE_CHANNEL_LINK)
     )
 
     
