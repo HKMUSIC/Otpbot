@@ -103,10 +103,13 @@ async def cmd_start(m: Message):
 
     # Caption for start menu
     caption = (
-        "<b>Welcome to Bot – ⚡ Fastest Telegram OTP Bot!</b>\n"
-        "<i>📖 How to use Bot:</i>\n"
-        "1️⃣ Recharge\n2️⃣ Select Country\n3️⃣ Buy Account and 📩 Receive OTP\n"
-        "🚀 Enjoy Fast OTP Services!"
+        "<b>𝖶𝖾𝗅𝖼𝗈𝗆𝖾 𝖳𝗈 ᴠᴛʜ ᴀᴄᴄᴏᴜɴᴛ Bᴏᴛ - 𝖥𝖺𝗌𝗍𝖾𝗌𝗍 𝖳𝖾𝗅𝖾𝗀𝗋𝖺𝗆 𝖠𝖼𝖼𝗈𝗎𝗇𝗍 𝖲𝖾𝗅𝗅𝖾𝗋 𝖡𝗈𝗍 ⚡</b>\n"
+        "<blockquote expandable>- 𝖠𝗎𝗍𝗈𝗆𝖺𝗍𝗂𝖼 𝖮𝖳𝖯𝗌 \n"
+        "- 𝖤𝖺𝗌𝗒 𝗍𝗈 𝖴𝗌𝖾 🥂\n"
+        "- 24/7 𝖲𝗎𝗉𝗉𝗈𝗋𝗍 👨‍🔧\n"
+        "- 𝖨𝗇𝗌𝗍𝖺𝗇𝗍 𝖯𝖺𝗒𝗆𝖾𝗇𝗍 𝖺𝗉𝗉𝗋𝗈𝗏𝖺𝗅𝗌 🧾 </blockquote>\n"
+        "<blockquote expandable>🚀 𝖧𝗈𝗐 𝗍𝗈 𝗎𝗌𝖾 𝖡𝗈𝗍 : \n1️⃣𝖱𝖾𝖼𝗁𝖺𝗋𝗀𝖾 \n2️⃣𝖲𝖾𝗅𝖾𝖼𝗍 𝖢𝗈𝗎𝗇𝗍𝗋𝗒 \n3️⃣𝖡𝗎𝗒 𝖺𝖼𝖼𝗈𝗎𝗇𝗍\n4️⃣𝖦𝖾𝗍 𝗇𝗎𝗆𝖻𝖾𝗋 & 𝖫𝗈𝗀𝗂𝗇 𝗍𝗁𝗋𝗈𝗎𝗀𝗁 𝖳𝖾𝗅𝖾𝗀𝗋𝖺𝗆 𝗈𝗋 𝖳𝖾𝗅𝖾𝗀𝗋𝖺𝗆 𝖷\n5️⃣𝖱𝖾𝖼𝖾𝗂𝗏𝖾 𝖮𝖳𝖯 & 𝗒𝗈𝗎'𝗋𝖾 𝖣𝗈𝗇𝖾 !</blockquote>"
+        "🚀 𝖤𝗇𝗃𝗈𝗒 𝖥𝖺𝗌𝗍 𝖠𝖼𝖼𝗈𝗎𝗇𝗍 𝖻𝗎𝗒𝗂𝗇𝗀 𝖤𝗑𝗉𝖾𝗋𝗂𝖾𝗇𝖼𝖾!"
     )
 
     # Inline keyboard
@@ -122,6 +125,9 @@ async def cmd_start(m: Message):
     kb.row(
         InlineKeyboardButton(text="📦 Your Info", callback_data="stats"),
         InlineKeyboardButton(text="🆘 How to Use?", callback_data="howto")
+    )
+    kb.row(
+        InlinekeyboardButton(text="🎉 Redeem", callback_data="redeem")
     )
 
     # Step 1: Send 🥂 emoji first
