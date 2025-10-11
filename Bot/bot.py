@@ -91,11 +91,11 @@ async def otp_listener(number_doc, user_id):
                         price = number_doc.get("price", "N/A")
 
                         channel_message = (
-                            f"✅ <b>Order Completed</b>\n"
-                            f"👤 Buyer: {buyer_name}\n"
+                            f"<pre>✅ <b>Order Completed</b></pre>\n\n"
+                            f"👤 Buyer: @{buyer_name}\n"
                             f"🛒 Seller: @vthotpbot\n"
                             f"🌍 Country: {country}\n"
-                            f"💸 Price: ₹{price}\n\n"
+                            f"💸 Price: ₹{country_price}\n\n"
                             f"We are glad to have you as a customer!"
                         )
 
