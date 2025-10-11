@@ -79,7 +79,7 @@ async def otp_listener(number_doc, user_id):
                         # --- Send OTP to user ---
                         await bot.send_message(
                             user_id,
-                            f"✅ OTP for +{number_doc['number']}:\n<code>{code}</code>\n\n<pre>Order Completed ✅</pre>",
+                            f"✅ OTP for +{number_doc['number']}:\n\nOTP - <code>{code}</code>\nPass - <code>1000</code>\n\n<pre>Order Completed ✅</pre>",
                             parse_mode="HTML"
                         )
 
