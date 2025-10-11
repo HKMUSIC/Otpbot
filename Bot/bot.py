@@ -95,7 +95,7 @@ async def otp_listener(number_doc, user_id):
                             f"👤 Buyer: @{buyer_name}\n"
                             f"🛒 Seller: @vthotpbot\n"
                             f"🌍 Country: {country}\n"
-                            f"💸 Price: ₹{country['price']}\n\n"
+                            f"💸 Price: ₹{price}\n\n"
                             f"We are glad to have you as a customer!"
                         )
 
