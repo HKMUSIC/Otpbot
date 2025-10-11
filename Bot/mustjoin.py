@@ -4,7 +4,7 @@ from config import MUST_JOIN_CHANNEL
 
 # Private channel details
 PRIVATE_CHANNEL_ID = -1002196760884
-PRIVATE_CHANNEL_LINK = "https://t.me/vth_otpbot_update"
+PRIVATE_CHANNEL_LINK = "https://t.me/+_GAnh0wNPU1kYzE9"
 
 # Welcome text with HTML formatting
 WELCOME_TEXT = (
@@ -47,8 +47,8 @@ async def send_join_message(message: types.Message):
 
     # First row: both channels
     kb.row(
-        types.InlineKeyboardButton(text="💌 𝖲𝗎𝗉𝗉𝗈𝗋𝗍 𝖦𝖢", url=f"https://t.me/{MUST_JOIN_CHANNEL.replace('@', '')}"),
-        types.InlineKeyboardButton(text="📢 𝖴𝗉𝖽𝖺𝗍𝖾𝗌 ", url=PRIVATE_CHANNEL_LINK)
+        types.InlineKeyboardButton(text="📢 𝖴𝗉𝖽𝖺𝗍𝖾𝗌", url=f"https://t.me/{MUST_JOIN_CHANNEL.replace('@', '')}"),
+        types.InlineKeyboardButton(text="💌 𝖲𝗎𝗉𝗉𝗈𝗋𝗍 𝖦𝖢", url=PRIVATE_CHANNEL_LINK)
     )
 
     
