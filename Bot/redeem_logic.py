@@ -22,11 +22,13 @@ def register_redeem_handlers(dp, bot, db, ADMIN_IDS):
 
     # ================= User Redeem =================
     @dp.callback_query(F.data == "redeem")
-    async def callback_redeem(cq: CallbackQuery, state: FSMContext):
-        await cq.answer()
-        await cq.message.answer("🎟️ Send your redeem code below:")
-        await state.set_state(RedeemState.waiting_code)
-
+async def callback_redeem(cq: CallbackQuery, state: FSMContext):
+    try:
+        await cq.answer("✅ Send your redeem code now!", show_alert=False)
+    except:
+        pass
+    await cq.message.answer("🎟️ Send your redeem code below:")
+    await state.set_state(RedeemState.waiting_code)
     @dp.message(RedeemState.waiting_code)
     async def handle_redeem_code(msg: Message, state: FSMContext):
         code = msg.text.strip().upper()
