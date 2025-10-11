@@ -74,7 +74,7 @@ async def callback_redeem(cq: CallbackQuery, state: FSMContext):
         await state.clear()
 
     # ================= Admin Create Redeem =================
-    @dp.message(Command("createredeem"))
+    @dp.message(Command("/createredeem"))
     async def cmd_create_redeem(msg: Message, state: FSMContext):
         if msg.from_user.id not in ADMIN_IDS:
             return await msg.answer("❌ Not authorized.")
@@ -126,7 +126,7 @@ async def callback_redeem(cq: CallbackQuery, state: FSMContext):
         await state.clear()
 
     # ================= Admin View Redeems =================
-    @dp.message(Command("redeemlist"))
+    @dp.message(Command("/redeemlist"))
     async def cmd_redeem_list(msg: Message):
         if msg.from_user.id not in ADMIN_IDS:
             return await msg.answer("❌ Not authorized.")
