@@ -4,6 +4,7 @@ import html
 from aiogram.fsm.context import FSMContext
 from datetime import datetime, timezone
 from aiogram import Bot, Dispatcher, F
+from redeem_logic import register_redeem_handlers
 from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
@@ -580,6 +581,7 @@ async def handle_debit(msg: Message, state: FSMContext):
 # ===== Register External Handlers =====
 register_readymade_accounts_handlers(dp=dp, bot=bot, users_col=users_col)
 register_recharge_handlers(dp=dp, bot=bot, users_col=users_col, txns_col=db["transactions"], ADMIN_IDS=ADMIN_IDS)
+register_redeem_handlers(dp=dp, bot=bot, db=db, ADMIN_IDS=ADMIN_IDS)
 
 # ===== Bot Runner =====
 async def main():
