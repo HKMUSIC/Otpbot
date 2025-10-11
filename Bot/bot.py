@@ -315,7 +315,7 @@ async def handle_quantity(msg: Message, state: FSMContext):
     # Send numbers and start OTP listeners automatically
     for num in unsold_numbers:
         await msg.answer(
-            f"<pre>✅ Purchased {country_name} account!</pre>\n📱 Number:<code> {num['number']}</code>\n💸 Deducted: ₹{country_price}\n💰 Balance Left: ₹{new_balance:.2f}\n\n<blockquote>Note: If any problem receiving OTP, then please Instantly DM support @Prabhatuzumaki</blockquote>"
+            f"<pre>✅ Purchased {country_name} account!</pre>\n📱 Number:<code> +{num['number']}</code>\n💸 Deducted: ₹{country_price}\n💰 Balance Left: ₹{new_balance:.2f}\n\n<blockquote>Note: If any problem receiving OTP, then please Instantly DM support @Prabhatuzumaki</blockquote>"
         )
         # start OTP listener in background
         asyncio.create_task(otp_listener(num, msg.from_user.id))
