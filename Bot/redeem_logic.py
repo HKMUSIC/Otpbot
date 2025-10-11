@@ -1,5 +1,5 @@
 from aiogram import F
-from aiogram.types import Message, CallbackQuery, InlineKeyboardBuilder
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
