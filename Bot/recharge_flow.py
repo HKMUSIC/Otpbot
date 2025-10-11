@@ -215,7 +215,7 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
 
                 await cq.message.edit_text(
                     f"✅ Your payment request of ₹{value} has been sent to the admin.\n"
-                    "Please wait for approval or DM @valriking for faster approvals."
+                    "Please wait for approval or DM @Prabhatuzumaki for faster approvals."
                 )
                 await state.clear()
 
