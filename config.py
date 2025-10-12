@@ -9,7 +9,7 @@ def _getenv(name: str, default: str | None = None, required: bool = False) -> st
         raise RuntimeError(f"Missing required env var: {name}")
     return val
     
-MUST_JOIN_CHANNEL = "@TOPOTP01"
+MUST_JOIN_CHANNEL = "@otpgrabers"
 BOT_TOKEN = _getenv("BOT_TOKEN", required=True)
 ADMIN_IDS = [int(i) for i in _getenv("ADMIN_IDS", "", required=True).replace(" ", "").split(",") if i]
 API_ID = "21377358"
