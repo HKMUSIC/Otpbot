@@ -47,7 +47,7 @@ async def send_join_message(message: types.Message):
 
     # First row: both channels
     kb.row(
-        types.InlineKeyboardButton(text="📢 𝖴𝗉𝖽𝖺𝗍𝖾𝗌", url=f"https://t.me/{MUST_JOIN_CHANNEL.replace('@', '')}"),
+        types.InlineKeyboardButton(text="📢 𝖴𝗉𝖽𝖺𝗍𝖾𝗌", url="https://t.me/otpgrabers"),
         types.InlineKeyboardButton(text="💌 𝖲𝗎𝗉𝗉𝗈𝗋𝗍 ", url=PRIVATE_CHANNEL_LINK)
     )
 
