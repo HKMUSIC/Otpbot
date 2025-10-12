@@ -7,7 +7,7 @@ import phonenumbers
 # --- Config ---
 BASE_DIR = os.path.dirname(__file__)
 PRICING_FILE = os.path.join(BASE_DIR, "pricing.json")
-ADMIN_IDS = [111111111]   # <- replace with your admin Telegram ID(s)
+ADMIN_IDS = [8488180191]   # <- replace with your admin Telegram ID(s)
 
 # Simple in-memory state for interactive command (replace with FSM if you prefer)
 admin_state = {}  # key: admin_user_id -> {"step": "...", "country_input": "..."}
