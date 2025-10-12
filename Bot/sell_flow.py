@@ -23,9 +23,7 @@ sales_col = db["sales"]
 class SellAccount(StatesGroup):
     waiting_number = State()
 
-async def register_sell_handlers(dp, bot):
-    # ================= SELL ACCOUNT =================
-
+def register_sell_handlers(dp, bot):  # ✅ remove async
     @dp.callback_query(F.data == "sell")
     async def callback_sell(cq: CallbackQuery, state: FSMContext):
         rates = list(sell_rates_col.find({}))
