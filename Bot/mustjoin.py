@@ -3,8 +3,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from config import MUST_JOIN_CHANNEL
 
 # Private channel details
-PRIVATE_CHANNEL_ID = -1003096815321
-PRIVATE_CHANNEL_LINK = "https://t.me/TG_ACC_ST0RE"
+PRIVATE_CHANNEL_ID = -1002950106823
+PRIVATE_CHANNEL_LINK = "https://t.me/animestoonie"
 
 # Welcome text with HTML formatting
 WELCOME_TEXT = (
