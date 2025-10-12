@@ -886,6 +886,27 @@ async def handle_user_redeem(msg: Message, state: FSMContext):
         parse_mode="HTML"
     )
     await state.clear()
+
+@dp.message(Command("editsell"))
+async def cmd_editsell(msg: Message):
+    if not is_admin(msg.from_user.id):
+        return await msg.answer("❌ Not authorized.")
+
+    await msg.answer("📋 Send the list in format:\n\n<code>USA ₹50\nIndia ₹10\nUK ₹20</code>")
+
+    @dp.message()  # Next message from admin
+    async def handle_sell_edit(m: Message):
+        sell_rates_col.delete_many({})
+        for line in m.text.splitlines():
+            try:
+                parts = line.split("₹")
+                country = parts[0].strip()
+                price = float(parts[1].strip())
+                code = "+1" if "USA" in country else "+91" if "India" in country else ""  # add more or editable
+                sell_rates_col.insert_one({"country": country, "price": price, "code": code})
+            except:
+                continue
+        await m.answer("✅ Sell rates updated.")
         
 
 # ================= Admin Broadcast (Forward Version - Aiogram Fix) =================
