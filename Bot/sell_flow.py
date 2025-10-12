@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from telethon import TelegramClient
 from telethon.sessions import StringSession
+from aiogram.filters import StateFilter
 from datetime import datetime, timedelta, timezone
 
 from config import ADMIN_IDS, LOG_CHANNEL, API_ID, API_HASH
