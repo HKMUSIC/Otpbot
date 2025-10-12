@@ -7,4 +7,5 @@ google-api-python-client==2.100.0
 google-auth==2.21.0
 telethon==1.31.0
 motor
-pip install phonenumbers pycountry
+phonenumbers
+pycountry
