@@ -137,19 +137,42 @@ async def cmd_start(m: Message):
         except:
             referred_by = None
 
+    # Check if user already exists
     user = users_col.find_one({"_id": m.from_user.id})
-    if not user:
+
+    if user:
+        # Existing user
+        await m.answer("🌟 You’re already our valued user. Welcome back!")
+    else:
+        # New user — create account
         user_data = {
             "_id": m.from_user.id,
             "username": m.from_user.username or None,
             "balance": 0.0,
+            "joined_at": datetime.datetime.utcnow(),
         }
+
         if referred_by and referred_by != m.from_user.id:
             user_data["referred_by"] = referred_by
-        users_col.insert_one(user_data)
-    else:
-        get_or_create_user(m.from_user.id, m.from_user.username)
 
+            # Notify referrer
+            try:
+                ref_user = users_col.find_one({"_id": referred_by})
+                if ref_user:
+                    await bot.send_message(
+                        chat_id=referred_by,
+                        text=(
+                            f"👋 <b>New Referral!</b>\n"
+                            f"@{m.from_user.username or m.from_user.full_name} just started the bot using your referral link.\n\n"
+                            f"💰 Whenever they add balance, you’ll earn <b>2%</b> of their recharge!"
+                        ),
+                        parse_mode="HTML"
+                    )
+            except Exception as e:
+                print("Referral notify error:", e)
+
+        users_col.insert_one(user_data)
+        await m.answer("🎉 Welcome! Your account has been created successfully.")
     # Ensure user exists in DB
     get_or_create_user(m.from_user.id, m.from_user.username)
 
