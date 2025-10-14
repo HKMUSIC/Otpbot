@@ -205,10 +205,9 @@ async def cmd_start(m: Message):
         InlineKeyboardButton(text="📦 Your Info", callback_data="stats"),
         InlineKeyboardButton(text="🆘 How to Use?", callback_data="howto")
     )
-    kb.row(
-        InlineKeyboardButton(text="📤 Sell Account", callback_data="sell"),  # 👈 NEW BUTTON ADDED
+    kb.row( 
         InlineKeyboardButton(text="🎉 Redeem", callback_data="redeem"),
-        InlineKeyboardButton(text="Earn", callback_data="refer"),  
+        InlineKeyboardButton(text="🥂 Refer & Earn", callback_data="refer"),  
     )
 
     # Step 1: Send 🥂 emoji first
