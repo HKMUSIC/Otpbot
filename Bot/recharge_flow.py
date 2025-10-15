@@ -8,6 +8,8 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.filters import StateFilter, Command
 from mustjoin import check_join
 
+# Import your Fampay checker function
+from fampaymodule import check_fampay_emails  # should return (found: bool, sender: str)
 
 # Recharge FSM
 class RechargeState(StatesGroup):
@@ -27,7 +29,7 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         text = (
             "💰 Add Funds to Your Account\n\n"
             "We only accept payments via UPI.\n"
-            "• Automatic payments have been stopped for security reasons.\n\n"
+            "• Automatic payments are now available via Fampay.\n\n"
             "Please choose a method below:"
         )
 
@@ -47,13 +49,31 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
             return
         await start_recharge_flow(message, state)
 
-    # ========= Flow Handlers =========
+    #======== Flow Handlers =========
     @dp.callback_query(F.data == "recharge_auto", StateFilter(RechargeState.choose_method))
-    async def recharge_auto(cq: CallbackQuery):
-        await cq.answer(
-            "⚠️ Automatic payment feature is currently unavailable. Please choose manual payment.",
-            show_alert=True
+    async def recharge_auto(cq: CallbackQuery, state: FSMContext):
+        # Follow manual flow until deposit button
+        data = await state.get_data()
+        msg_id = data.get("recharge_msg_id")
+
+        kb = InlineKeyboardBuilder()
+        kb.button(text="Deposit Now", callback_data="deposit_now")
+        kb.button(text="Go Back", callback_data="go_back")
+        kb.adjust(2)
+
+        text = (
+            f"Hello {cq.from_user.full_name},\n\n"
+            "You have chosen the automatic payment method via Fampay.\n\n"
+            "Please proceed to deposit using the options below:"
         )
+
+        await bot.edit_message_text(
+            text=text,
+            chat_id=cq.from_user.id,
+            message_id=msg_id,
+            reply_markup=kb.as_markup()
+        )
+        await cq.answer()
 
     @dp.callback_query(F.data == "recharge_manual", StateFilter(RechargeState.choose_method))
     async def recharge_manual(cq: CallbackQuery, state: FSMContext):
@@ -93,7 +113,7 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         text = (
             "💰 Add Funds to Your Account\n\n"
             "We only accept payments via UPI.\n"
-            "• Automatic payments have been stopped for security reasons.\n\n"
+            "• Automatic payments are now available via Fampay.\n\n"
             "Please choose a method below:"
         )
 
@@ -105,6 +125,7 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         )
         await cq.answer()
 
+    # ========= Deposit Options =========
     @dp.callback_query(F.data == "deposit_now", StateFilter(RechargeState.choose_method))
     async def deposit_now(cq: CallbackQuery, state: FSMContext):
         data = await state.get_data()
@@ -113,6 +134,7 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         kb = InlineKeyboardBuilder()
         kb.button(text="UPI", callback_data="upi_qr")
         kb.button(text="Crypto", callback_data="crypto_pay")
+        kb.button(text="Fampay", callback_data="fampay_auto")  # NEW
         kb.button(text="Go Back", callback_data="go_back")
         kb.adjust(2, 1)
 
@@ -169,6 +191,7 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         await state.set_state(RechargeState.waiting_deposit_screenshot)
         await cq.answer()
 
+    # ===== UPI QR Flow =====
     @dp.callback_query(F.data == "upi_qr", StateFilter(RechargeState.choose_method))
     async def upi_qr(cq: CallbackQuery, state: FSMContext):
         data = await state.get_data()
@@ -200,178 +223,133 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         await state.update_data(recharge_msg_id=msg.message_id)
         await cq.answer()
 
-    # ===== Amount Input Calculator =====
-    @dp.callback_query(F.data == "send_deposit", StateFilter(RechargeState.choose_method))
-    async def send_deposit(cq: CallbackQuery, state: FSMContext):
+    # ===== Fampay Automatic QR Flow =====
+    @dp.callback_query(F.data == "fampay_auto", StateFilter(RechargeState.choose_method))
+    async def fampay_auto(cq: CallbackQuery, state: FSMContext):
+        data = await state.get_data()
+        msg_id = data.get("recharge_msg_id")
+        qr_image = FSInputFile("IMG_20251011_222812_469.jpg")  # same QR as manual
+
+        kb = InlineKeyboardBuilder()
+        kb.button(text="Deposit", callback_data="fampay_deposit")
+        kb.button(text="Go Back", callback_data="deposit_now")
+        kb.adjust(2)
+
+        text = (
+            "🔝 Send INR on this QR Code via Fampay.\n"
+            "💳 Or Pay To:\n\n<code>prabhat896@ptaxis</code>\n"
+            "✅ After Payment, Click Deposit Button.\n\n"
+            "📌 Automatic payments will be verified via Fampay transaction ID."
+        )
+
+        msg = await cq.message.answer_photo(
+            photo=qr_image,
+            caption=text,
+            parse_mode="HTML",
+            reply_markup=kb.as_markup()
+        )
+        await state.update_data(recharge_msg_id=msg.message_id)
+        await cq.answer()
+
+    # ===== Fampay Deposit Handling =====
+    @dp.callback_query(F.data == "fampay_deposit", StateFilter(RechargeState.choose_method))
+    async def fampay_deposit(cq: CallbackQuery, state: FSMContext):
         try:
             await cq.message.delete()
         except:
             pass
-        await cq.message.answer("📸 Please send a screenshot of your payment.")
+        await cq.message.answer(
+            "📸 Please send a screenshot of your Fampay payment.\n"
+            "💰 Also enter the amount and your Fampay Transaction ID in the format:\n"
+            "`Amount | TransactionID`"
+        )
+        await state.update_data(is_fampay=True)
         await state.set_state(RechargeState.waiting_deposit_screenshot)
         await cq.answer()
 
-    @dp.message(StateFilter(RechargeState.waiting_deposit_screenshot), F.photo)
-    async def screenshot_received(message: Message, state: FSMContext):
-        await state.update_data(screenshot=message.photo[-1].file_id)
-
-        kb = InlineKeyboardBuilder()
-        for row in ["123", "456", "789", "0."]:
-            for ch in row:
-                kb.button(text=ch, callback_data=f"amount_{ch}")
-            kb.adjust(len(row))
-        kb.button(text="❌", callback_data="amount_del")
-        kb.button(text="✅", callback_data="amount_send")
-        kb.adjust(3)
-
-        msg = await message.answer("💰 Enter the amount you sent:\n0", reply_markup=kb.as_markup())
-        await state.update_data(amount_msg_id=msg.message_id, amount_value="")
-        await state.set_state(RechargeState.waiting_deposit_amount)
-
-    @dp.callback_query(StateFilter(RechargeState.waiting_deposit_amount))
-    async def amount_button_pressed(cq: CallbackQuery, state: FSMContext):
+    # ===== Screenshot & Amount Input =====
+    @dp.message(StateFilter(RechargeState.waiting_deposit_screenshot))
+    async def screenshot_fampay(message: Message, state: FSMContext):
         data = await state.get_data()
-        value = data.get("amount_value", "")
-        kb = cq.message.reply_markup
+        is_fampay = data.get("is_fampay", False)
 
-        if cq.data.startswith("amount_"):
-            key = cq.data.split("_")[1]
-            if key == "del":
-                value = value[:-1]
-            elif key == "send":
-                if not value:
-                    await cq.answer("❌ Please enter a valid amount.", show_alert=True)
-                    return
+        if message.photo:
+            await state.update_data(screenshot=message.photo[-1].file_id)
+            await message.answer("✅ Screenshot received.\nNow, send `Amount | TransactionID`.")
+            return
 
-                # Save transaction
-                screenshot = data.get("screenshot")
-                user = cq.from_user
+        if is_fampay and "|" in message.text:
+            try:
+                amount_str, txnid = map(str.strip, message.text.split("|"))
+                amount = float(amount_str)
+            except:
+                await message.answer("❌ Invalid format. Please use `Amount | TransactionID`.")
+                return
+
+            # Check Fampay IMAP for the txn id (up to 10 sec)
+            found = False
+            for _ in range(5):  # check 5 times, 2 sec interval
+                found, sender = check_fampay_emails(txnid)
+                if found:
+                    break
+                await asyncio.sleep(2)
+
+            user = message.from_user
+            screenshot = data.get("screenshot")
+
+            if found:
+                # Directly credit balance
+                users_col.update_one({"_id": user.id}, {"$inc": {"balance": amount}})
+                await message.answer(f"✅ Payment confirmed! ₹{amount} has been credited to your account.")
+                await state.clear()
+            else:
+                # Send to admin for manual approval
                 txn_doc = {
                     "user_id": user.id,
                     "username": user.username,
                     "full_name": user.full_name,
-                    "is_crypto": data.get("is_crypto", False),
-                    "amount": float(value) * (88 if data.get("is_crypto") else 1),
-                    "original_amount": float(value),
+                    "is_crypto": False,
+                    "is_fampay": True,
+                    "amount": amount,
+                    "original_amount": amount,
                     "screenshot": screenshot,
+                    "fampay_txn_id": txnid,
                     "status": "pending",
                     "created_at": datetime.datetime.utcnow()
                 }
                 txn_id = txns_col.insert_one(txn_doc).inserted_id
 
-                await cq.message.edit_text(
-                    f"✅ Your payment request of ₹{value} has been sent to the admin.\n"
-                    "Please wait for approval or DM @Prabhatuzumaki for faster approvals."
-                )
-                await state.clear()
-
-                # Admin buttons
                 kb_admin = InlineKeyboardBuilder()
                 kb_admin.button(text="✅ Approve", callback_data=f"approve_txn:{txn_id}")
                 kb_admin.button(text="❌ Decline", callback_data=f"decline_txn:{txn_id}")
                 kb_admin.adjust(2)
 
-                # Send to admins
                 for admin_id in ADMIN_IDS:
                     try:
                         await bot.send_photo(
                             chat_id=admin_id,
                             photo=screenshot,
                             caption=(
-                                f"<b>Payment Approval Request</b>\n\n"
+                                f"<b>Fampay Payment Approval Request</b>\n\n"
                                 f"Name: {user.full_name}\n"
                                 f"Username: @{user.username}\n"
                                 f"ID: {user.id}\n"
-                                f"Amount: {value}"
+                                f"Amount: {amount}\n"
+                                f"Txn ID: {txnid}"
                             ),
                             parse_mode="HTML",
                             reply_markup=kb_admin.as_markup()
                         )
                     except Exception:
                         pass
-                await cq.answer()
-                return
-            else:
-                value += key
 
-        display_value = value if value else "0"
-        await cq.message.edit_text(f"💰 Enter the amount you sent:\n{display_value}", reply_markup=kb)
-        await state.update_data(amount_value=value)
-        await cq.answer()
-
-    # ===== Admin Approval Handlers =====
-    @dp.callback_query(F.data.startswith("approve_txn"))
-    async def approve_txn(cq: CallbackQuery):
-        txn_id = cq.data.split(":")[1]
-        txn = txns_col.find_one({"_id": ObjectId(txn_id)})
-
-        if not txn:
-            await cq.answer("Transaction not found!", show_alert=True)
-            return
-
-        if txn.get("status") == "approved":
-            await cq.answer("Already approved!", show_alert=True)
-            return
-
-        # Update transaction status
-        txns_col.update_one({"_id": ObjectId(txn_id)}, {"$set": {"status": "approved"}})
-
-        # Add balance to user
-        user = users_col.find_one({"_id": txn["user_id"]})
-        if user:
-            # Add credited amount to user balance
-            new_balance = user.get("balance", 0.0) + txn["amount"]
-            users_col.update_one({"_id": txn["user_id"]}, {"$set": {"balance": new_balance}})
-
-            # Notify the user
-            try:
-                await bot.send_message(
-                    chat_id=txn["user_id"],
-                    text=f"✅ Your payment of ₹{txn['amount']} has been approved and your new balance is ₹{new_balance:.2f}."
+                await message.answer(
+                    f"❌ Transaction ID not found in Fampay.\n"
+                    "Your payment has been sent for manual admin approval."
                 )
-            except Exception:
-                pass
-
-            # ========== Referral Bonus System ==========
-            referrer_id = user.get("referred_by")
-            if referrer_id:
-                try:
-                    reward = round(txn["amount"] * 0.02, 2)
-                    if reward > 0:
-                        users_col.update_one({"_id": referrer_id}, {"$inc": {"balance": reward}})
-
-                        # Notify referrer about bonus
-                        referrer = users_col.find_one({"_id": referrer_id})
-                        ref_username = referrer.get("username", "")
-                        try:
-                            await bot.send_message(
-                                chat_id=referrer_id,
-                                text=(
-                                    f"🎉 Your referred user "
-                                    f"@{user.get('username') or user.get('_id')} just recharged ₹{txn['amount']}.\n"
-                                    f"💰 You earned ₹{reward:.2f} (2%) added to your balance!"
-                                )
-                            )
-                        except Exception:
-                            pass
-                except Exception as e:
-                    print("Referral bonus error:", e)
-        await cq.message.edit_caption(cq.message.caption + "\n✅ Approved and balance credited")
-        await cq.answer("Transaction approved and balance updated!")
-
-    @dp.callback_query(F.data.startswith("decline_txn"))
-    async def decline_txn(cq: CallbackQuery):
-        txn_id = cq.data.split(":")[1]
-        txn = txns_col.find_one({"_id": ObjectId(txn_id)})
-
-        if not txn:
-            await cq.answer("Transaction not found!", show_alert=True)
-            return
-
-        if txn.get("status") == "declined":
-            await cq.answer("Already declined!", show_alert=True)
-            return
-
-        txns_col.update_one({"_id": ObjectId(txn_id)}, {"$set": {"status": "declined"}})
-        await cq.message.edit_caption(cq.message.caption + "\n❌ Declined")
-        await cq.answer("Transaction declined!")
+                await state.clear()
+        else:
+            # Manual / Crypto flow handled separately
+            # Trigger original amount entry logic
+            await message.answer("📸 Screenshot received. Please proceed to enter the amount using buttons.")
+            await screenshot_received(message, state)  # reuse existing handler
