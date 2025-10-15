@@ -230,7 +230,7 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
     async def fampay_auto(cq: CallbackQuery, state: FSMContext):
         data = await state.get_data()
         msg_id = data.get("recharge_msg_id")
-        qr_image = FSInputFile("IMG_20251011_222812_469.jpg")  # same QR as manual
+        qr_image = FSInputFile("Screenshot_2025-09-06-09-31-25-25_ba41e9a642e6e0e2b03656bfbbffd6e4.jpg")  # same QR as manual
 
         kb = InlineKeyboardBuilder()
         kb.button(text="Deposit", callback_data="fampay_deposit")
@@ -239,7 +239,7 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
 
         text = (
             "🔝 Send INR on this QR Code via Fampay.\n"
-            "💳 Or Pay To:\n\n<code>prabhat896@ptaxis</code>\n"
+            "💳 Or Pay To:\n\n<code>iybhathstalker@fam</code>\n"
             "✅ After Payment, Click Deposit Button.\n\n"
             "📌 Automatic payments will be verified via Fampay transaction ID."
         )
