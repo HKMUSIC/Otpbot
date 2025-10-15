@@ -271,87 +271,90 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
 
     # ===== Screenshot & Amount Input =====
     @dp.message(StateFilter(RechargeState.waiting_deposit_screenshot))
-    async def screenshot_fampay(message: Message, state: FSMContext):
-        data = await state.get_data()
-        is_fampay = data.get("is_fampay", False)
+async def screenshot_fampay(message: Message, state: FSMContext):
+    data = await state.get_data()
+    is_fampay = data.get("is_fampay", False)
 
-        if message.photo:
-            await state.update_data(screenshot=message.photo[-1].file_id)
-            await message.answer("✅ Screenshot received.\nNow, send `Amount | TransactionID`.")
+    if message.photo:
+        await state.update_data(screenshot=message.photo[-1].file_id)
+        await message.answer("✅ Screenshot received.\nNow, send `Amount | TransactionID`.")
+        return
+
+    if is_fampay and "|" in message.text:
+        try:
+            amount_str, txnid = map(str.strip, message.text.split("|"))
+            amount = float(amount_str)
+        except:
+            await message.answer("❌ Invalid format. Please use `Amount | TransactionID`.")
             return
 
-        if is_fampay and "|" in message.text:
-            try:
-                amount_str, txnid = map(str.strip, message.text.split("|"))
-                amount = float(amount_str)
-            except:
-                await message.answer("❌ Invalid format. Please use `Amount | TransactionID`.")
-                return
+        # Send immediate acknowledgment
+        processing_msg = await message.answer("⏳ Processing your request, please wait 5–10 seconds...")
 
-            # Check Fampay IMAP for the txn id (up to 10 sec)
-            found = False
-            for _ in range(5):  # check 5 times, 2 sec interval
-                found, sender = check_fampay_emails(txnid)
-                if found:
-                    break
-                await asyncio.sleep(2)
-
-            user = message.from_user
-            screenshot = data.get("screenshot")
-
+        # Check Fampay IMAP for the txn id (up to 10 sec)
+        found = False
+        sender = None
+        for _ in range(5):  # check 5 times, 2 sec interval
+            found, sender = check_fampay_emails(txnid)
             if found:
-                # Directly credit balance
-                users_col.update_one({"_id": user.id}, {"$inc": {"balance": amount}})
-                await message.answer(f"✅ Payment confirmed! ₹{amount} has been credited to your account.")
-                await state.clear()
-            else:
-                # Send to admin for manual approval
-                txn_doc = {
-                    "user_id": user.id,
-                    "username": user.username,
-                    "full_name": user.full_name,
-                    "is_crypto": False,
-                    "is_fampay": True,
-                    "amount": amount,
-                    "original_amount": amount,
-                    "screenshot": screenshot,
-                    "fampay_txn_id": txnid,
-                    "status": "pending",
-                    "created_at": datetime.datetime.utcnow()
-                }
-                txn_id = txns_col.insert_one(txn_doc).inserted_id
+                break
+            await asyncio.sleep(2)
 
-                kb_admin = InlineKeyboardBuilder()
-                kb_admin.button(text="✅ Approve", callback_data=f"approve_txn:{txn_id}")
-                kb_admin.button(text="❌ Decline", callback_data=f"decline_txn:{txn_id}")
-                kb_admin.adjust(2)
+        await processing_msg.delete()  # remove the "processing" message
+        user = message.from_user
+        screenshot = data.get("screenshot")
 
-                for admin_id in ADMIN_IDS:
-                    try:
-                        await bot.send_photo(
-                            chat_id=admin_id,
-                            photo=screenshot,
-                            caption=(
-                                f"<b>Fampay Payment Approval Request</b>\n\n"
-                                f"Name: {user.full_name}\n"
-                                f"Username: @{user.username}\n"
-                                f"ID: {user.id}\n"
-                                f"Amount: {amount}\n"
-                                f"Txn ID: {txnid}"
-                            ),
-                            parse_mode="HTML",
-                            reply_markup=kb_admin.as_markup()
-                        )
-                    except Exception:
-                        pass
-
-                await message.answer(
-                    f"❌ Transaction ID not found in Fampay.\n"
-                    "Your payment has been sent for manual admin approval."
-                )
-                await state.clear()
+        if found:
+            # Directly credit balance
+            users_col.update_one({"_id": user.id}, {"$inc": {"balance": amount}})
+            await message.answer(f"✅ Payment confirmed! ₹{amount} has been credited to your account.")
+            await state.clear()
         else:
-            # Manual / Crypto flow handled separately
-            # Trigger original amount entry logic
-            await message.answer("📸 Screenshot received. Please proceed to enter the amount using buttons.")
-            await screenshot_received(message, state)  # reuse existing handler
+            # Send to admin for manual approval
+            txn_doc = {
+                "user_id": user.id,
+                "username": user.username,
+                "full_name": user.full_name,
+                "is_crypto": False,
+                "is_fampay": True,
+                "amount": amount,
+                "original_amount": amount,
+                "screenshot": screenshot,
+                "fampay_txn_id": txnid,
+                "status": "pending",
+                "created_at": datetime.datetime.utcnow()
+            }
+            txn_id = txns_col.insert_one(txn_doc).inserted_id
+
+            kb_admin = InlineKeyboardBuilder()
+            kb_admin.button(text="✅ Approve", callback_data=f"approve_txn:{txn_id}")
+            kb_admin.button(text="❌ Decline", callback_data=f"decline_txn:{txn_id}")
+            kb_admin.adjust(2)
+
+            for admin_id in ADMIN_IDS:
+                try:
+                    await bot.send_photo(
+                        chat_id=admin_id,
+                        photo=screenshot,
+                        caption=(
+                            f"<b>Fampay Payment Approval Request</b>\n\n"
+                            f"Name: {user.full_name}\n"
+                            f"Username: @{user.username}\n"
+                            f"ID: {user.id}\n"
+                            f"Amount: {amount}\n"
+                            f"Txn ID: {txnid}"
+                        ),
+                        parse_mode="HTML",
+                        reply_markup=kb_admin.as_markup()
+                    )
+                except Exception:
+                    pass
+
+            await message.answer(
+                f"❌ Transaction ID not found in Fampay.\n"
+                "Your payment has been sent for manual admin approval."
+            )
+            await state.clear()
+    else:
+        await message.answer("📸 Screenshot received. Please proceed to enter the amount using buttons.")
+        await screenshot_received(message, state)
