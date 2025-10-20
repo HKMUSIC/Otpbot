@@ -17,7 +17,7 @@ from requests.auth import HTTPBasicAuth
 from fampaymodule import check_fampay_emails  # should return (found: bool, sender: str)
 
 # --- Initialize bot and dispatcher ---
-bot = Bot(token="YOUR_BOT_TOKEN")
+bot = Bot(token="8240394115:AAHoBxLr30amA7X4SfvAuEGI2pcGoYQkHP4")
 dp = Dispatcher(storage=MemoryStorage())
 # Recharge FSM
 class RechargeState(StatesGroup):
