@@ -10,6 +10,7 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.filters import StateFilter, Command
 from mustjoin import check_join
 import requests
+from aiogram import Bot
 from requests.auth import HTTPBasicAuth
 
 # Import your Fampay checker function
