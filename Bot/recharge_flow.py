@@ -266,7 +266,7 @@ async def razorpay_qr(cq: CallbackQuery, state: FSMContext):
     except:
         pass
 
-    qr_image = FSInputFile("razorpay_qr.jpg")  # your saved QR image
+    qr_image = FSInputFile("QrCode.jpeg.png")  # your saved QR image
 
     kb = InlineKeyboardBuilder()
     kb.button(text="✅ Done", callback_data="razorpay_done")
