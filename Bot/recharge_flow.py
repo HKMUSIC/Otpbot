@@ -269,28 +269,27 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         
         try:
             await bot.delete_message(chat_id=cq.from_user.id, message_id=msg_id)
-            except:
-                pass
-                qr_image = FSInputFile("QrCode.jpeg.png")  # your saved QR image
-                kb = InlineKeyboardBuilder()
-                kb.button(text="✅ Done", callback_data="razorpay_done")
-                kb.button(text="Go Back", callback_data="deposit_now")
-                kb.adjust(2)
-                
-                text = (
-                    "💳 <b>Razorpay Payment</b>\n\n"
-                    "📲 Scan this QR and make payment via any UPI app.\n\n"
-                    "✅ Once payment is done, tap 'Done' and send your UTR (Transaction ID) when asked."
-                )
-                
-                msg = await cq.message.answer_photo(
-                    photo=qr_image,
-                    caption=text,
-                    parse_mode="HTML",
-                    reply_markup=kb.as_markup()
-                )
-                await state.update_data(recharge_msg_id=msg.message_id)
-                await cq.answer()
+            
+        except:
+            pass
+            qr_image = FSInputFile("QrCode.jpeg.png")  # your saved QR image
+            kb = InlineKeyboardBuilder()
+            kb.button(text="✅ Done", callback_data="razorpay_done")
+            kb.button(text="Go Back", callback_data="deposit_now")
+            kb.adjust(2)
+            text = (
+                "💳 <b>Razorpay Payment</b>\n\n"
+                "📲 Scan this QR and make payment via any UPI app.\n\n"
+                "✅ Once payment is done, tap 'Done' and send your UTR (Transaction ID) when asked."
+            )
+            msg = await cq.message.answer_photo(
+                photo=qr_image,
+                caption=text,
+                parse_mode="HTML",
+                reply_markup=kb.as_markup()
+            )
+            await state.update_data(recharge_msg_id=msg.message_id)
+            await cq.answer()
 
 
 @dp.callback_query(F.data == "razorpay_done", StateFilter(RechargeState.choose_method))
