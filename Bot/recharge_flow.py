@@ -11,6 +11,8 @@ from aiogram.filters import StateFilter, Command
 from mustjoin import check_join
 import requests
 from aiogram import Bot
+from aiogram import Dispatcher
+from aiogram.fsm.storage.memory import MemoryStorage
 from requests.auth import HTTPBasicAuth
 
 # Import your Fampay checker function
