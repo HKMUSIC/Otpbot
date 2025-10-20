@@ -295,73 +295,72 @@ async def razorpay_done(cq: CallbackQuery, state: FSMContext):
     await state.update_data(is_razorpay=True)
     await state.set_state(RechargeState.waiting_deposit_amount)
     await cq.answer()
-
-
-    # ===== Razorpay Auto Verification =====
-is_razorpay = data.get("is_razorpay", False)
-if is_razorpay:
-    utr = message.text.strip()
-
-    await message.answer("⏳ Verifying your payment with Razorpay...")
-
-    url = f"https://api.razorpay.com/v1/payments?qr_id={RAZORPAY_QR_ID}"
-    res = requests.get(url, auth=HTTPBasicAuth(RAZORPAY_KEY, RAZORPAY_SECRET))
-    data_rz = res.json()
-
-    verified = False
-    payment_found = None
-    for p in data_rz.get("items", []):
-        txn_id = p.get("acquirer_data", {}).get("bank_transaction_id")
-        if txn_id and utr in txn_id and p["status"] == "captured":
-            verified = True
-            payment_found = p
-            break
-
-    user = message.from_user
-
-    if verified:
-        amount = payment_found["amount"] / 100  # Razorpay gives paise
-        users_col.update_one({"_id": user.id}, {"$inc": {"balance": amount}})
-        await message.answer(f"✅ Payment verified! ₹{amount} credited successfully.")
-        await state.clear()
-    else:
-        await message.answer(
-            "❌ Could not verify your payment automatically.\n"
-            "Your payment has been sent for manual review."
-        )
-        txn_doc = {
-            "user_id": user.id,
-            "username": user.username,
-            "full_name": user.full_name,
-            "is_razorpay": True,
-            "utr": utr,
-            "status": "pending",
-            "created_at": datetime.datetime.utcnow()
-        }
-        txn_id = txns_col.insert_one(txn_doc).inserted_id
-
-        kb_admin = InlineKeyboardBuilder()
-        kb_admin.button(text="✅ Approve", callback_data=f"approve_txn:{txn_id}")
-        kb_admin.button(text="❌ Decline", callback_data=f"decline_txn:{txn_id}")
-        kb_admin.adjust(2)
-
-        for admin_id in ADMIN_IDS:
-            try:
-                await bot.send_message(
-                    chat_id=admin_id,
-                    text=(
-                        f"<b>Manual Razorpay Verification Required</b>\n\n"
-                        f"Name: {user.full_name}\n"
-                        f"Username: @{user.username}\n"
-                        f"UTR: {utr}"
-                    ),
-                    parse_mode="HTML",
-                    reply_markup=kb_admin.as_markup()
-                )
-            except Exception:
-                pass
-        await state.clear()
-    return
+  
+    is_razorpay = data.get("is_razorpay", False)
+    if is_razorpay:
+        utr = message.text.strip()
+        await message.answer("⏳ Verifying your payment with Razorpay...")
+        url = f"https://api.razorpay.com/v1/payments?qr_id={RAZORPAY_QR_ID}"
+        res = requests.get(url, auth=HTTPBasicAuth(RAZORPAY_KEY, RAZORPAY_SECRET))
+        data_rz = res.json()
+        
+        verified = False
+        payment_found = None
+        for p in data_rz.get("items", []):
+            txn_id = p.get("acquirer_data", {}).get("bank_transaction_id")
+            if txn_id and utr in txn_id and p["status"] == "captured":
+                verified = True
+                payment_found = p
+                break
+                
+                user = message.from_user
+                
+                if verified:
+                    amount = payment_found["amount"] / 100  # Razorpay gives paise
+                    users_col.update_one({"_id": user.id}, {"$inc": {"balance": amount}})
+                    await message.answer(f"✅ Payment verified! ₹{amount} credited successfully.")
+                    await state.clear()
+                
+                else:
+                    await message.answer(
+                        "❌ Could not verify your payment automatically.\n"
+                        "Your payment has been sent for manual review."
+                    )
+                    
+                    txn_doc = {
+                        "user_id": user.id,
+                        "username": user.username,
+                        "full_name": user.full_name,
+                        "is_razorpay": True,
+                        "utr": utr,
+                        "status": "pending",
+                        "created_at": datetime.datetime.utcnow()
+                    
+                    }
+                    txn_id = txns_col.insert_one(txn_doc).inserted_ikb_admin = InlineKeyboardBuilder()
+                    kb_admin.button(text="✅ Approve", callback_data=f"approve_txn:{txn_id}")
+                    kb_admin.button(text="❌ Decline", callback_data=f"decline_txn:{txn_id}")
+                    kb_admin.adjust(2)
+                    
+                    for admin_id in ADMIN_IDS:
+                        try:
+                            await bot.send_message(
+                                
+                                chat_id=admin_id,
+                                
+                                text=(
+                                    f"<b>Manual Razorpay Verification Required</b>\n\n"
+                                    f"Name: {user.full_name}\n"
+                                    f"Username: @{user.username}\n"
+                                    f"UTR: {utr}"
+                                ),
+                                parse_mode="HTML",
+                                reply_markup=kb_admin.as_markup()
+                            )
+                        except Exception:
+                            pass
+                            await state.clear()
+                            return
 
     # ===== Fampay Deposit Handling =====
     @dp.callback_query(F.data == "fampay_deposit", StateFilter(RechargeState.choose_method))
