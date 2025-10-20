@@ -138,10 +138,9 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         kb = InlineKeyboardBuilder()
         kb.button(text="UPI", callback_data="upi_qr")
         kb.button(text="Crypto", callback_data="crypto_pay")
-        kb.button(text="Fampay", callback_data="fampay_auto")
-        kb.button(text="Razorpay", callback_data="razorpay_qr")# NEW
+        kb.button(text="Razorpay", callback_data="razorpay_qr")
         kb.button(text="Go Back", callback_data="go_back")
-        kb.adjust(2, 2, 1)
+        kb.adjust(2, 1)
 
         text = "Select your preferred payment method:\n\n1 INR = 1 INR\n1 USDT = ₹88"
 
