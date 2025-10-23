@@ -3,8 +3,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from config import MUST_JOIN_CHANNEL
 
 # Private channel details
-PRIVATE_CHANNEL_ID = -1002950106823
-PRIVATE_CHANNEL_LINK = "https://t.me/animestoonie"
+PRIVATE_CHANNEL_ID = -1002543821600
+PRIVATE_CHANNEL_LINK = "https://t.me/tgaccbototp"
 
 # Welcome text with HTML formatting
 WELCOME_TEXT = (
@@ -47,7 +47,7 @@ async def send_join_message(message: types.Message):
 
     # First row: both channels
     kb.row(
-        types.InlineKeyboardButton(text="📢 𝖴𝗉𝖽𝖺𝗍𝖾𝗌", url="https://t.me/otpgrabers"),
+        types.InlineKeyboardButton(text="📢 𝖴𝗉𝖽𝖺𝗍𝖾𝗌", url="https://t.me/tgaccbototp"),
         types.InlineKeyboardButton(text="💌 𝖲𝗎𝗉𝗉𝗈𝗋𝗍 ", url=PRIVATE_CHANNEL_LINK)
     )
 
