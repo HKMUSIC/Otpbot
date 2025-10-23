@@ -140,11 +140,11 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         text = (
             "🪙 <b>Make Payment via Crypto</b>\n\n"
             "Send your payment to the USDT wallet addresses below:\n\n"
-            "📥 <b>TRC20 Address:</b>\n<code>TW4oPVrKNYsaht3MyHiDbxt9gDM9LbRUy6</code>\n\n"
-            "🌐 <b>BEP20 Address:</b>\n<code>0xdc714CDA825542C0c223a340d3D1e75BB93F6d7c</code>\n\n"
-            "💜 <b>POLYGON Address:</b>\n<code>0xdc714CDA825542C0c223a340d3D1e75BB93F6d7c</code>\n\n"
+            "📥 <b>Binance id:</b>\n<code>1128392666</code>\n\n"
+            "🌐 <b>BEP20 Address:</b>\n<code>0xba1521ffbd81de3684072c3c07bf386ea91efee2</code>\n\n"
+            "💜 <b>POLYGON Address:</b>\n<code>0xba1521ffbd81de3684072c3c07bf386ea91efee2</code>\n\n"
             "💰 <b>Minimum Payment:</b> 0.01 USDT\n"
-            "💱 <b>Exchange Rate:</b> 1 USDT = ₹88\n\n"
+            "💱 <b>Exchange Rate:</b> 1 USDT = ₹89\n\n"
             "📸 After completing the payment, take a screenshot.\n\n"
             "🔘 Tap <b>'Submit Payment'</b> below to continue."
         )
@@ -178,7 +178,7 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         except:
             pass
 
-        qr_image = FSInputFile("IMG_20251011_222812_469.jpg")
+        qr_image = FSInputFile("https://files.catbox.moe/ceyfdf.jpg")
 
         kb = InlineKeyboardBuilder()
         kb.button(text="Deposit", callback_data="send_deposit")
@@ -187,7 +187,7 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
 
         text = (
             "🔝 Send INR on this QR Code.\n"
-            "💳 Or Pay To:\n\n<code>prabhat896@ptaxis</code>\n"
+            "💳 Or Pay To:\n\n<code>7039287003@ybl</code>\n"
             "✅ After Payment, Click Deposit Button."
         )
 
