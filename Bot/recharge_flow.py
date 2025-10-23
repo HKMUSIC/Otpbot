@@ -140,9 +140,8 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         text = (
             "🪙 <b>Make Payment via Crypto</b>\n\n"
             "Send your payment to the USDT wallet addresses below:\n\n"
-            "📥 <b>Binance id:</b>\n<code>1128392666</code>\n\n"
-            "🌐 <b>BEP20 Address:</b>\n<code>0xba1521ffbd81de3684072c3c07bf386ea91efee2</code>\n\n"
-            "💜 <b>POLYGON Address:</b>\n<code>0xba1521ffbd81de3684072c3c07bf386ea91efee2</code>\n\n"
+            "🌐 <b>BEP20 Address:</b>\n<code>0xFf9D3BF408eD7c0980e23c0535F526348b68D342</code>\n\n"
+            "💜 <b>TRC20 Address:</b>\n<code>TZGmfoHzXxZyzK43c4fDVBDn8P9FJEftKb</code>\n\n"
             "💰 <b>Minimum Payment:</b> 0.01 USDT\n"
             "💱 <b>Exchange Rate:</b> 1 USDT = ₹89\n\n"
             "📸 After completing the payment, take a screenshot.\n\n"
@@ -188,6 +187,7 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         text = (
             "🔝 Send INR on this QR Code.\n"
             "💳 Or Pay To:\n\n<code>7039287003@ybl</code>\n"
+            "or :\n<code>ranaparataprao@okicici</code>\n"
             "✅ After Payment, Click Deposit Button."
         )
 
