@@ -140,6 +140,7 @@ def register_recharge_handlers(dp, bot, users_col, txns_col, ADMIN_IDS):
         text = (
             "🪙 <b>Make Payment via Crypto</b>\n\n"
             "Send your payment to the USDT wallet addresses below:\n\n"
+            "📥<b>binance id:<b>\n<code>1109042411</code>\n\n"
             "🌐 <b>BEP20 Address:</b>\n<code>0xFf9D3BF408eD7c0980e23c0535F526348b68D342</code>\n\n"
             "💜 <b>TRC20 Address:</b>\n<code>TZGmfoHzXxZyzK43c4fDVBDn8P9FJEftKb</code>\n\n"
             "💰 <b>Minimum Payment:</b> 0.01 USDT\n"
