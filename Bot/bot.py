@@ -129,7 +129,7 @@ async def otp_listener(number_doc, user_id):
         )
 
 # === your channel usernames ===
-REQUIRED_CHANNELS = ["tgaccbototp", "tgids_store"]
+REQUIRED_CHANNELS = ["tgaccbototp", "https://t.me/+MFPTkww-UFFlZjhl"]
 
 @dp.message(Command("start"))
 async def cmd_start(m: Message):
