@@ -129,8 +129,10 @@ async def otp_listener(number_doc, user_id):
         )
 
 # === your channel usernames ===
+
+
 REQUIRED_CHANNELS = [
-    "tgaccbototp",  # public username
+    "tgaccbototp",  # public
     "https://t.me/+MFPTkww-UFFlZjhl"  # private invite link
 ]
 
@@ -138,26 +140,21 @@ REQUIRED_CHANNELS = [
 async def cmd_start(m: Message):
     args = m.text.split()
     referred_by = None
-    is_ref_link = False
-
     if len(args) > 1 and args[1].startswith("ref"):
-        is_ref_link = True
         try:
             referred_by = int(args[1][3:])
         except:
             referred_by = None
 
-    user = users_col.find_one({"_id": m.from_user.id})
     get_or_create_user(m.from_user.id, m.from_user.username)
 
-    # 🔒 Check if user joined both required channels
     not_joined = []
+
     for channel in REQUIRED_CHANNELS:
         try:
-            # If channel is a link (private), extract chat info from link
             if channel.startswith("https://t.me/"):
-                invite_link = channel
-                chat = await bot.get_chat(invite_link)
+                # ⚠️ private channel
+                chat = await bot.get_chat(channel)
                 member = await bot.get_chat_member(chat.id, m.from_user.id)
             else:
                 # public username
@@ -167,30 +164,30 @@ async def cmd_start(m: Message):
                 not_joined.append(channel)
 
         except Exception as e:
-            # In case of any error (e.g. not a member / invalid link)
+            # 👇 If bot can’t access channel (private one)
+            print(f"Access error for {channel}: {e}")
             not_joined.append(channel)
 
-    # ❌ If not joined, show join buttons and stop further execution
     if not_joined:
         kb = InlineKeyboardBuilder()
         for ch in not_joined:
             if ch.startswith("https://t.me/"):
-                # private invite link
-                kb.button(text="Join Private Channel 🔒", url=ch)
+                kb.button(text="🔒 Join Private Channel", url=ch)
             else:
-                # public username
-                kb.button(text=f"Join @{ch}", url=f"https://t.me/{ch}")
+                kb.button(text=f"📢 Join @{ch}", url=f"https://t.me/{ch}")
         kb.button(text="✅ I've Joined", callback_data="check_join")
         kb.adjust(1)
+
         return await m.answer(
-            "🚫 <b>You must join our channels before using the bot:</b>",
+            "🚫 <b>You must join our required channels before using the bot:</b>\n\n"
+            "Make sure your Telegram privacy settings allow others to see the groups you’ve joined.",
             reply_markup=kb.as_markup(),
             parse_mode="HTML"
         )
 
-    # ✅ If user joined all channels, continue...
+    # ✅ If all joined
     await m.answer("✅ You have joined all required channels! Welcome 🎉")
-
+    
     caption = (
         "<b>𝖶𝖾𝗅𝖼𝗈𝗆𝖾 𝖳𝗈 ᴛɢ ᴀᴄᴄᴏᴜɴᴛ ʀᴏʙᴏᴛ - 𝖥𝖺𝗌𝗍𝖾𝗌𝖳 𝖳𝖾𝗅𝖾𝗀𝗋𝖺𝗆 𝖠𝖼𝖼𝗈𝗎𝗇𝗍 𝖲𝖾𝗅𝗅𝖾𝗋 𝖡𝗈𝗍🥂</b>\n"
         "<blockquote expandable>- 𝖠𝗎𝗍𝗈𝗆𝖺𝗍𝗂𝖼 𝖮𝖳𝖯𝗌 📌 \n"
