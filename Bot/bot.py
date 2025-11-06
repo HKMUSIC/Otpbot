@@ -130,7 +130,7 @@ async def otp_listener(number_doc, user_id):
 
 # === your channel usernames / ids ===
 REQUIRED_CHANNELS = [
-    "@tgaccbototp",         # Public channel
+    "@OTPGRABER" # Public channel
     "-1002711907665"        # Private channel ID
 ]
 
