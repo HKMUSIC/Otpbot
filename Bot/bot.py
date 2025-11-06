@@ -128,14 +128,6 @@ async def otp_listener(number_doc, user_id):
             parse_mode="HTML"
         )
 
-# === your channel usernames / ids ===
-REQUIRED_CHANNELS = [
-    "@OTPGRABER" # Public channel
-    "-1002711907665"        # Private channel ID
-]
-
-PRIVATE_INVITE_LINK = "https://t.me/+zwbBO92AGRFjY2U1"   # Your private channel invite link
-
 @dp.message(Command("start"))
 async def cmd_start(m: Message):
     args = m.text.split()
@@ -152,37 +144,14 @@ async def cmd_start(m: Message):
     user = users_col.find_one({"_id": m.from_user.id})
     get_or_create_user(m.from_user.id, m.from_user.username)
 
-    # 🔒 Check if user joined both required channels
-    not_joined = []
-    for channel in REQUIRED_CHANNELS:
-        try:
-            member = await bot.get_chat_member(channel, m.from_user.id)
-            if member.status not in ["member", "administrator", "creator"]:
-                not_joined.append(channel)
-        except Exception:
-            not_joined.append(channel)
+    # ✅ YAHAN SE MUST JOIN HAT GAYA
+    # Koi channel check nahi hoga now
 
-    # ❌ If not joined, show join buttons and stop further execution
-    if not_joined:
-        kb = InlineKeyboardBuilder()
-        
-        for ch in not_joined:
-            if ch.startswith("-100"):   # PRIVATE CHANNEL
-                kb.button(text="Join Private Channel", url=PRIVATE_INVITE_LINK)
-            else:                      # PUBLIC CHANNEL
-                kb.button(
-                    text=f"Join {ch.replace('@', '')}",
-                    url=f"https://t.me/{ch.replace('@', '')}"
-                )
-
-        kb.button(text="✅ I've Joined", callback_data="check_join")
-        kb.adjust(1)
-
-        return await m.answer(
-            "🚫 <b>You must join our channels before using the bot:</b>",
-            reply_markup=kb.as_markup(),
-            parse_mode="HTML"
-)
+    await m.answer(
+        "<b>✅ Welcome to the bot!</b>\n\n"
+        "Buy your favourite country account.",
+        parse_mode="HTML"
+    )  
     caption = (
         "<b>𝖶𝖾𝗅𝖼𝗈𝗆𝖾 𝖳𝗈 ᴛɢ ᴀᴄᴄᴏᴜɴᴛ ʀᴏʙᴏᴛ - 𝖥𝖺𝗌𝗍𝖾𝗌𝖳 𝖳𝖾𝗅𝖾𝗀𝗋𝖺𝗆 𝖠𝖼𝖼𝗈𝗎𝗇𝗍 𝖲𝖾𝗅𝗅𝖾𝗋 𝖡𝗈𝗍🥂</b>\n"
         "<blockquote expandable>- 𝖠𝗎𝗍𝗈𝗆𝖺𝗍𝗂𝖼 𝖮𝖳𝖯𝗌 📌 \n"
