@@ -128,8 +128,13 @@ async def otp_listener(number_doc, user_id):
             parse_mode="HTML"
         )
 
-# === your channel usernames ===
-REQUIRED_CHANNELS = ["@tgaccbototp"]
+# === your channel usernames / ids ===
+REQUIRED_CHANNELS = [
+    "@tgaccbototp",         # Public channel
+    "-1002711907665"        # Private channel ID
+]
+
+PRIVATE_INVITE_LINK = "https://t.me/+zwbBO92AGRFjY2U1"   # Your private channel invite link
 
 @dp.message(Command("start"))
 async def cmd_start(m: Message):
@@ -160,15 +165,24 @@ async def cmd_start(m: Message):
     # ❌ If not joined, show join buttons and stop further execution
     if not_joined:
         kb = InlineKeyboardBuilder()
+        
         for ch in not_joined:
-            kb.button(text=f"Join {ch.replace('@', '')}", url=f"https://t.me/{ch.replace('@', '')}")
+            if ch.startswith("-100"):   # PRIVATE CHANNEL
+                kb.button(text="Join Private Channel", url=PRIVATE_INVITE_LINK)
+            else:                      # PUBLIC CHANNEL
+                kb.button(
+                    text=f"Join {ch.replace('@', '')}",
+                    url=f"https://t.me/{ch.replace('@', '')}"
+                )
+
         kb.button(text="✅ I've Joined", callback_data="check_join")
         kb.adjust(1)
+
         return await m.answer(
             "🚫 <b>You must join our channels before using the bot:</b>",
             reply_markup=kb.as_markup(),
             parse_mode="HTML"
-        ) 
+)
     caption = (
         "<b>𝖶𝖾𝗅𝖼𝗈𝗆𝖾 𝖳𝗈 ᴛɢ ᴀᴄᴄᴏᴜɴᴛ ʀᴏʙᴏᴛ - 𝖥𝖺𝗌𝗍𝖾𝗌𝖳 𝖳𝖾𝗅𝖾𝗀𝗋𝖺𝗆 𝖠𝖼𝖼𝗈𝗎𝗇𝗍 𝖲𝖾𝗅𝗅𝖾𝗋 𝖡𝗈𝗍🥂</b>\n"
         "<blockquote expandable>- 𝖠𝗎𝗍𝗈𝗆𝖺𝗍𝗂𝖼 𝖮𝖳𝖯𝗌 📌 \n"
