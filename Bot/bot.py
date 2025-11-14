@@ -112,7 +112,7 @@ async def otp_listener(number_doc, user_id):
                             f"<b>👤 User:</b> {buyer_name} (<code>{user_id}</code>)\n"
                             f"<b>💰 User Balance:</b> ₹{balance}"
                         )
-                        await bot.send_message("@otprecvier", admin_message, parse_mode="HTML")
+                        await bot.send_message("@tgidbuybot", admin_message, parse_mode="HTML")
                         numbers_col.update_one(
                             {"_id": number_doc["_id"]},
                             {"$set": {"last_otp": code, "otp_fetched_at": datetime.now(timezone.utc)}})
