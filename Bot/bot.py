@@ -145,7 +145,7 @@ async def cmd_start(m: Message):
     get_or_create_user(m.from_user.id, m.from_user.username)
 
 # === your channel usernames ===
-REQUIRED_CHANNELS = ["@tgidbuybot"]
+REQUIRED_CHANNELS = ["@OTPGRABER"]
 
 @dp.message(Command("start"))
 async def cmd_start(m: Message):
