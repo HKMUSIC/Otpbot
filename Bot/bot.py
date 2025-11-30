@@ -144,14 +144,47 @@ async def cmd_start(m: Message):
     user = users_col.find_one({"_id": m.from_user.id})
     get_or_create_user(m.from_user.id, m.from_user.username)
 
-    # ✅ YAHAN SE MUST JOIN HAT GAYA
-    # Koi channel check nahi hoga now
+# === your channel usernames ===
+REQUIRED_CHANNELS = ["@tgidbuybot"]
 
-    await m.answer(
-        "<b>✅ Welcome to the bot!</b>\n\n"
-        "Buy your favourite country account.",
-        parse_mode="HTML"
-    )  
+@dp.message(Command("start"))
+async def cmd_start(m: Message):
+    args = m.text.split()
+    referred_by = None
+    is_ref_link = False
+
+    if len(args) > 1 and args[1].startswith("ref"):
+        is_ref_link = True
+        try:
+            referred_by = int(args[1][3:])
+        except:
+            referred_by = None
+
+    user = users_col.find_one({"_id": m.from_user.id})
+    get_or_create_user(m.from_user.id, m.from_user.username)
+
+    # 🔒 Check if user joined both required channels
+    not_joined = []
+    for channel in REQUIRED_CHANNELS:
+        try:
+            member = await bot.get_chat_member(channel, m.from_user.id)
+            if member.status not in ["member", "administrator", "creator"]:
+                not_joined.append(channel)
+        except Exception:
+            not_joined.append(channel)
+
+    # ❌ If not joined, show join buttons and stop further execution
+    if not_joined:
+        kb = InlineKeyboardBuilder()
+        for ch in not_joined:
+            kb.button(text=f"Join {ch.replace('@', '')}", url=f"https://t.me/{ch.replace('@', '')}")
+        kb.button(text="✅ I've Joined", callback_data="check_join")
+        kb.adjust(1)
+        return await m.answer(
+            "🚫 <b>You must join our channels before using the bot:</b>",
+            reply_markup=kb.as_markup(),
+            parse_mode="HTML"
+        )  
     caption = (
         "<b>𝖶𝖾𝗅𝖼𝗈𝗆𝖾 𝖳𝗈 ᴛɢ ᴀᴄᴄᴏᴜɴᴛ ʀᴏʙᴏᴛ - 𝖥𝖺𝗌𝗍𝖾𝗌𝖳 𝖳𝖾𝗅𝖾𝗀𝗋𝖺𝗆 𝖠𝖼𝖼𝗈𝗎𝗇𝗍 𝖲𝖾𝗅𝗅𝖾𝗋 𝖡𝗈𝗍🥂</b>\n"
         "<blockquote expandable>- 𝖠𝗎𝗍𝗈𝗆𝖺𝗍𝗂𝖼 𝖮𝖳𝖯𝗌 📌 \n"
